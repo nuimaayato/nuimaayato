@@ -1,0 +1,1406 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>リヤビュー / REAR VIEW</title>
+<style>
+  :root{
+    --bg:#050409;
+    --ink:rgba(255,255,255,.92);
+    --mut:rgba(255,255,255,.72);
+    --line:rgba(255,255,255,.14);
+    --glass:rgba(10,9,18,.78);
+    --blood:rgba(255,60,90,.86);
+    --cyan:rgba(120,255,255,.55);
+    --shadow:rgba(0,0,0,.75);
+  }
+  html,body{height:100%; margin:0; background:var(--bg); overflow:hidden; font-family:system-ui, sans-serif;}
+  canvas{display:block; margin:auto; background:#07060d;}
+
+  .titleUI{position:absolute; inset:0; display:flex; align-items:center; justify-content:center; pointer-events:none;}
+  .titleWrap{width:min(860px, calc(100% - 24px)); display:grid; gap:14px; pointer-events:auto;}
+  .panel{
+    background:var(--glass);
+    border:1px solid var(--line);
+    border-radius:18px;
+    box-shadow:0 0 0 1px rgba(255,255,255,.05), 0 30px 90px rgba(0,0,0,.80);
+    backdrop-filter: blur(8px);
+  }
+
+  .mirrorBox{ padding:12px 14px; }
+  .mirrorTop{display:flex; justify-content:space-between; align-items:end; gap:10px; margin-bottom:8px;}
+  .logo{font-weight:950; letter-spacing:.10em; font-size:22px; text-shadow:0 0 24px rgba(255,70,100,.12);}
+  .sub{color:var(--mut); font-size:12px; text-align:right; line-height:1.2}
+  .mirrorCanvas{width:100%; height:110px; border-radius:14px; border:1px solid rgba(255,255,255,.10); background:rgba(0,0,0,.28);}
+
+  .menuBox{ padding:12px 14px; }
+  .menuGrid{display:grid; grid-template-columns:1fr; gap:10px;}
+  button{
+    all:unset; cursor:pointer; padding:12px 12px; border-radius:14px;
+    border:1px solid rgba(255,255,255,.14);
+    background:rgba(255,255,255,.06);
+    color:var(--ink);
+    user-select:none;
+    transition:transform .05s ease, background .12s ease;
+  }
+  button:hover{ background:rgba(255,255,255,.10); }
+  button:active{ transform:scale(.99); }
+  .row{display:flex; justify-content:space-between; gap:12px; align-items:center;}
+  .tag{ color:var(--mut); font-size:12px; }
+
+  .dialog{
+    position:absolute; left:50%; bottom:16px; transform:translateX(-50%);
+    width:min(920px, calc(100% - 24px));
+    padding:16px 16px;
+    display:none;
+    pointer-events:auto;
+  }
+  .dialogInner{
+    border-radius:18px;
+    border:1px solid rgba(255,255,255,.14);
+    background:linear-gradient(180deg, rgba(10,9,18,.86), rgba(10,9,18,.72));
+    box-shadow:0 0 0 1px rgba(255,255,255,.05), 0 26px 70px rgba(0,0,0,.75);
+    padding:14px 14px;
+    position:relative;
+    overflow:hidden;
+  }
+  .dialogInner:before{
+    content:"";
+    position:absolute; inset:-60px;
+    background:
+      radial-gradient(circle at 20% 30%, rgba(255,60,90,.12), transparent 55%),
+      radial-gradient(circle at 80% 40%, rgba(120,255,255,.08), transparent 55%);
+    filter: blur(10px);
+    pointer-events:none;
+  }
+  .speaker{
+    position:relative;
+    color:rgba(255,255,255,.86);
+    font-size:13px;
+    letter-spacing:.08em;
+    margin-bottom:8px;
+    text-shadow:0 2px 0 var(--shadow);
+  }
+  .line{
+    position:relative;
+    color:var(--ink);
+    font-size:18px;
+    line-height:1.65;
+    text-shadow:0 2px 0 var(--shadow);
+  }
+  .next{
+    position:relative;
+    margin-top:12px;
+    color:rgba(255,255,255,.70);
+    font-size:12px;
+    text-align:right;
+  }
+  kbd{
+    background:rgba(255,255,255,.10);
+    border:1px solid rgba(255,255,255,.14);
+    padding:2px 6px;border-radius:8px;font-size:12px;
+  }
+
+  .hud{position:absolute; left:0; right:0; top:0; padding:10px 12px; display:none; pointer-events:none; color:var(--ink); text-shadow:0 2px 0 var(--shadow);}
+  .hudRow{display:flex; justify-content:space-between; gap:10px; align-items:flex-start;}
+  .hudLeft{width:410px;}
+  .hudRight{width:360px; text-align:right;}
+  .bar{height:10px;border-radius:999px;background:rgba(255,255,255,.10);overflow:hidden;border:1px solid rgba(255,255,255,.10);}
+  .fill{height:100%;width:0%;background:var(--blood);}
+  .mini{color:var(--mut);font-size:12px;margin-top:6px;line-height:1.25;}
+.btnSmall{padding:8px 12px; border-radius:10px; border:1px solid rgba(255,255,255,0.18); background:rgba(0,0,0,0.25); color:rgba(255,255,255,0.92);} .btnSmall:hover{background:rgba(255,255,255,0.08);} 
+</style>
+</head>
+<body>
+
+<canvas id="cv" width="960" height="600"></canvas>
+
+<div class="titleUI" id="titleUI">
+  <div class="titleWrap">
+    <div class="panel mirrorBox">
+      <div class="mirrorTop">
+        <div class="logo">リヤビュー <span style="opacity:.75;font-size:14px;">REAR VIEW</span></div>
+        <div class="sub" id="stageInfo">段階：Easy<br><span style="opacity:.8">（クリアで次が解放）</span></div>
+      </div>
+      <canvas id="mirror" class="mirrorCanvas" width="820" height="110"></canvas>
+    </div>
+
+    <div class="panel menuBox">
+      <div class="menuGrid">
+        <button id="startBtn">
+          <div class="row">
+            <div>心霊スポット【始める】</div>
+            <div class="tag" id="startTag">Easyで開始</div>
+          </div>
+        </button>
+        <button id="settingsBtn">
+          <div class="row"><div>設定</div><div class="tag">（音量）</div></div>
+        </button>
+<div id="settingsPanel" style="display:none; margin-top:10px; padding:10px 12px; border:1px solid rgba(255,255,255,0.15); border-radius:12px; background:rgba(0,0,0,0.35);">
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
+      <div style="font-weight:700; letter-spacing:0.5px;">音量</div>
+      <div style="opacity:0.75; font-size:12px;">BGM / SE</div>
+    </div>
+    <div style="display:flex; flex-direction:column; gap:10px; margin-top:10px;">
+      <label style="display:flex; align-items:center; gap:10px;">
+        <span style="width:64px; opacity:0.9;">BGM</span>
+        <input id="bgmVol" type="range" min="0" max="100" value="65" style="flex:1;">
+        <span id="bgmVolVal" style="width:34px; text-align:right; opacity:0.8;">65</span>
+      </label>
+      <label style="display:flex; align-items:center; gap:10px;">
+        <span style="width:64px; opacity:0.9;">SE</span>
+        <input id="seVol" type="range" min="0" max="100" value="75" style="flex:1;">
+        <span id="seVolVal" style="width:34px; text-align:right; opacity:0.8;">75</span>
+      </label>
+      <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:2px;">
+        <button id="settingsClose" class="btnSmall">閉じる</button>
+      </div>
+    </div>
+  </div>
+
+        <button id="quitBtn">
+          <div class="row"><div>行かない【終わる】</div><div class="tag">（終了）</div></div>
+        </button>
+        <button id="synBtn">
+          <div class="row"><div>あらすじ</div><div class="tag">（表示）</div></div>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="dialog" id="dialog">
+  <div class="dialogInner">
+    <div class="speaker" id="spk">？？？</div>
+    <div class="line" id="dlgLine">……</div>
+    <div class="next">次へ：<kbd>Space</kbd> / タップ</div>
+  </div>
+
+  
+</div>
+
+<div class="hud" id="hud">
+  <div class="hudRow">
+    <div class="hudLeft">
+      <div class="mini" id="hudText">……</div>
+
+      <div class="mini" style="margin-top:10px">疲労（走るほど溜まる）</div>
+      <div class="bar"><div class="fill" id="fatFill"></div></div>
+
+      <div class="mini" style="margin-top:10px">距離（出口まで）</div>
+      <div class="bar"><div class="fill" id="distFill" style="background:rgba(255,255,255,.35)"></div></div>
+
+      <div class="mini" style="margin-top:10px">
+        左右：<kbd>A</kbd>/<kbd>D</kbd>　
+        走る：<kbd>Space</kbd>連打　
+        リスタート：<kbd>R</kbd>
+      </div>
+    </div>
+    <div class="hudRight">
+      <div class="mini" id="hudStage" style="text-align:right">段階：Easy</div>
+      <div class="mini" style="text-align:right; margin-top:6px" id="paceLine">歩き：遅い / 走り：速い（疲労MAXで失速）</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const cv = document.getElementById("cv");
+const ctx = cv.getContext("2d");
+const mirrorCv = document.getElementById("mirror");
+const mctx = mirrorCv.getContext("2d");
+
+const titleUI = document.getElementById("titleUI");
+const dialog = document.getElementById("dialog");
+const spk = document.getElementById("spk");
+const dlgLine = document.getElementById("dlgLine");
+
+const hud = document.getElementById("hud");
+const hudText = document.getElementById("hudText");
+const fatFill = document.getElementById("fatFill");
+const distFill = document.getElementById("distFill");
+const hudStage = document.getElementById("hudStage");
+const paceLine = document.getElementById("paceLine");
+
+const stageInfo = document.getElementById("stageInfo");
+const startTag = document.getElementById("startTag");
+
+const STORAGE_KEY = "rearview_progress_v6";
+
+/* ===== Credits ===== */
+let creditsY = 0;
+const CREDITS = [
+  "STAFF ROLL",
+  "",
+  "アイディア　縫魔 妖斗",
+  "他はAI",
+  "",
+  "THANK YOU FOR PLAYING",
+];
+
+/* ===== Ending (DEATHクリア後) ===== */
+const ENDING = [
+  "主人公は数々の心霊スポットから逃げ切った。",
+  "でも……何でだろう。",
+  "山を抜けても、町に出ても、",
+  "“帰り道”だけが終わらない。",
+  "ミラーに映っていたのは、幽霊の姿じゃない。",
+  "——縮んでいく『距離』だった。",
+  "走れば息が切れ、立ち止まれば近づく。",
+  "あの場所から出た瞬間、世界の“外側”に落ちたのかもしれない。",
+  "……次にミラーを覗くのは、あなたかもしれない。",
+  "",
+  "（Space / Enter / タップ）スタッフロールへ",
+];
+let endingY = 0;
+
+
+
+let endingAuto = 0; // エンディング自動遷移タイマー
+/* ===== 音源 ===== */
+const BGM = {
+  title: "タイトル.mp3",
+  easy: "イージー.mp3",
+  normal: "ノーマル.mp3",
+  hard: "ハード.mp3",
+  veryhard: "ベリーハード.mp3",
+  death: "デス.mp3",
+};
+let bgm = new Audio();
+bgm.loop = true;
+bgm.volume = 0.55;
+bgm.preload = "auto";
+function playBgm(src){
+  if(bgm.src && bgm.src.endsWith(src)) return;
+  bgm.pause(); bgm.currentTime = 0;
+  bgm.src = src;
+  bgm.volume = VOL ? VOL.bgm : 0.65;
+    bgm.play().catch(()=>{});
+}
+
+/* ===== Volume Settings ===== */
+function clamp01(v){ return Math.max(0, Math.min(1, v)); }
+function loadVol(){
+  try{
+    const raw = localStorage.getItem("rearview_vol");
+    if(!raw) return {bgm:0.65, se:0.75};
+    const v = JSON.parse(raw);
+    return {bgm: clamp01((v.bgm??0.65)), se: clamp01((v.se??0.75))};
+  }catch(e){ return {bgm:0.65, se:0.75}; }
+}
+function saveVol(v){
+  try{ localStorage.setItem("rearview_vol", JSON.stringify(v)); }catch(e){}
+}
+let VOL = loadVol();
+function applyVolumes(){
+  // BGM
+  if(bgm){
+    bgm.volume = VOL.bgm;
+  }
+  // SE（効果音は playSE で都度 volume をセット）
+}
+function playSE(aud){
+  try{
+    aud.currentTime = 0;
+    aud.volume = VOL.se;
+    aud.play().catch(()=>{});
+  }catch(e){}
+}
+
+
+function stopBgm(){ bgm.pause(); bgm.currentTime = 0; }
+
+/* ===== 段階（VeryHard/Deathを緩和）===== */
+const STAGES = [
+  { id:"easy",     name:"Easy",      goal:13500, ghostStage:0, obstacleRate:0.014, wallPunish:0.28, gapScale:1.05, ghostBase:1.18, sideMul:1.00 },
+  { id:"normal",   name:"Normal",    goal:15500, ghostStage:1, obstacleRate:0.020, wallPunish:0.40, gapScale:0.88, ghostBase:1.30, sideMul:1.00 },
+  { id:"hard",     name:"Hard",      goal:17500, ghostStage:2, obstacleRate:0.026, wallPunish:0.52, gapScale:0.74, ghostBase:1.42, sideMul:1.08 },
+  // ✅ 密度ちょい緩和
+  { id:"veryhard", name:"Very Hard", goal:19500, ghostStage:3, obstacleRate:0.029, wallPunish:0.60, gapScale:0.64, ghostBase:1.54 },
+  // ✅ Deathもさらに“理不尽じゃない”寄り
+  { id:"death",    name:"DEATH",     goal:22500, ghostStage:4, obstacleRate:0.031, wallPunish:0.62, gapScale:0.58, ghostBase:1.82 },
+];
+
+function clampInt(v,a,b){ return Math.max(a, Math.min(b, v|0)); }
+function loadProgress(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(!raw) return { unlocked:0, current:0 };
+    const p = JSON.parse(raw);
+    return {
+      unlocked: clampInt(p.unlocked|0, 0, 4),
+      current:  clampInt(p.current|0,  0, clampInt(p.unlocked|0,0,4)),
+    };
+  }catch{
+    return { unlocked:0, current:0 };
+  }
+}
+function saveProgress(p){ localStorage.setItem(STORAGE_KEY, JSON.stringify(p)); }
+
+let progress = loadProgress();
+
+progress.unlocked = clampInt(progress.unlocked, 0, 4);
+progress.current  = clampInt(progress.current,  0, progress.unlocked);
+saveProgress(progress);
+
+/* ===== Input ===== */
+const Input={down:Object.create(null), just:Object.create(null)};
+addEventListener("keydown",(e)=>{
+  const k=e.key.toLowerCase();
+  if(!Input.down[k]) Input.just[k]=true;
+  Input.down[k]=true;
+  bgm.play().catch(()=>{});
+});
+addEventListener("keyup",(e)=> Input.down[e.key.toLowerCase()]=false);
+addEventListener("pointerdown", ()=>{ bgm.play().catch(()=>{}); }, {passive:true});
+function consumeJust(k){ if(Input.just[k]){ Input.just[k]=false; return true; } return false; }
+function tickInput(){ for(const k in Input.just) Input.just[k]=false; }
+
+/* ===== Config（スタミナ増＋MAX後1〜2秒走れない）===== */
+const CFG={
+  road:{ topY:210, bottomY:600, topW:170, bottomW:900, shoulder:96 },
+  walkSpeed:1.86,
+  sideSpeed:3.12,
+  sprintBoost:3.42,
+  mashPower:0.70,
+  mashDecay:0.11,
+
+  fatMax:150,          // ✅ 走れる量を増やす
+  fatGain:1.30,        // ✅ 溜まりを緩める（長く走れる）
+  fatRecover:1.20,     // 回復やや早め
+  tiredLockFrames:90,  // ✅ MAX後：走れない（約1.5秒）
+
+  obstacleSpeed:2.05,
+  obstacleSpawnY:-120,
+  obstacleYKill:820,
+  hitSlowAdd:0.20,
+  slowRecover:0.0060,
+  ghostCatchDist:55,
+  shakeMax:14,
+};
+function clamp(v,a,b){ return Math.max(a, Math.min(b,v)); }
+function rnd(a,b){ return a + Math.random()*(b-a); }
+
+/* ===== Road helper ===== */
+function roadHalfW(y){
+  const t = (y-CFG.road.topY) / (CFG.road.bottomY-CFG.road.topY);
+  const tt = clamp(t,0,1);
+  return (CFG.road.topW/2)*(1-tt) + (CFG.road.bottomW/2)*tt;
+}
+function roadLeft(y){ return cv.width/2 - roadHalfW(y); }
+function roadRight(y){ return cv.width/2 + roadHalfW(y); }
+
+/* ===== State ===== */
+let state="title"; // title / prologue / play / clear / deathwait / ending / over / credits
+let stageIndex = progress.current;
+let stage = STAGES[stageIndex];
+// fix9: 起動時は必ずイージー開始（タイトル表示も固定）
+progress.current = 0;
+saveProgress(progress);
+stageIndex = 0;
+stage = STAGES[0];
+
+
+let game=null;
+let obstacles=[];
+let wallCD=0;
+let spawnCD=0;
+
+/* ===== SFX ===== */
+let audioCtx=null;
+function ensureAudio(){ if(!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)(); }
+function noiseBurst(dur=0.14, vol=0.05){
+  ensureAudio();
+  const t=audioCtx.currentTime;
+  const bufferSize = Math.floor(audioCtx.sampleRate * dur);
+  const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+  const data = buffer.getChannelData(0);
+  for(let i=0;i<bufferSize;i++) data[i] = (Math.random()*2-1) * (1 - i/bufferSize);
+  const src = audioCtx.createBufferSource();
+  src.buffer = buffer;
+  const g = audioCtx.createGain();
+  g.gain.setValueAtTime(vol, t);
+  g.gain.exponentialRampToValueAtTime(0.0001, t+dur);
+  src.connect(g); g.connect(audioCtx.destination);
+  src.start(t); src.stop(t+dur);
+}
+function hitSfx(){ noiseBurst(0.10, 0.045); }
+function screamSfx(){ noiseBurst(0.55, 0.12); }
+
+/* ===== Title text ===== */
+function refreshTitleText(){
+  // stageIndex/stage は開始時・クリア継続時に設定する（ここでは触らない）
+  stageInfo.innerHTML = `段階：${stage.name}<br><span style="opacity:.8">（クリアで次が解放）</span>`;
+  startTag.textContent = `${stage.name}で開始`;
+}
+
+function initVolumeUI(){
+  const bgmVol = document.getElementById("bgmVol");
+  const seVol = document.getElementById("seVol");
+  const bgmVal = document.getElementById("bgmVolVal");
+  const seVal = document.getElementById("seVolVal");
+  if(!bgmVol || !seVol) return;
+
+  bgmVol.value = Math.round(VOL.bgm*100);
+  seVol.value  = Math.round(VOL.se*100);
+  bgmVal.textContent = bgmVol.value;
+  seVal.textContent  = seVol.value;
+
+  const onChange = ()=>{
+    VOL.bgm = parseInt(bgmVol.value,10)/100;
+    VOL.se  = parseInt(seVol.value,10)/100;
+    bgmVal.textContent = bgmVol.value;
+    seVal.textContent  = seVol.value;
+    saveVol(VOL);
+    applyVolumes();
+  };
+  bgmVol.addEventListener("input", onChange);
+  seVol.addEventListener("input", onChange);
+
+  const closeBtn = document.getElementById("settingsClose");
+  if(closeBtn){
+    closeBtn.onclick = ()=>{ document.getElementById("settingsPanel").style.display="none"; };
+  }
+  applyVolumes();
+}
+
+refreshTitleText();
+initVolumeUI();
+
+/* ===== Title mirror ===== */
+function drawTitleMirror(){
+  const w=mirrorCv.width, h=mirrorCv.height;
+  mctx.clearRect(0,0,w,h);
+  mctx.fillStyle="rgba(0,0,0,0.30)";
+  mctx.fillRect(0,0,w,h);
+
+  mctx.strokeStyle="rgba(255,255,255,0.10)";
+  mctx.lineWidth=1;
+  for(let i=0;i<8;i++){
+    mctx.beginPath();
+    mctx.moveTo(40+i*90, 6);
+    mctx.lineTo(10+i*90+rnd(-12,12), h-6);
+    mctx.stroke();
+  }
+
+  mctx.fillStyle="rgba(255,255,255,0.07)";
+  mctx.beginPath();
+  mctx.moveTo(w*0.22, h*0.82);
+  mctx.lineTo(w*0.78, h*0.82);
+  mctx.lineTo(w*0.92, h*0.18);
+  mctx.lineTo(w*0.08, h*0.18);
+  mctx.closePath();
+  mctx.fill();
+
+  const t = performance.now()*0.001;
+  const gx = w*0.50 + Math.sin(t*1.3)*6;
+  const gy = h*0.55 + Math.sin(t*2.1)*3;
+
+  mctx.globalAlpha = 0.18;
+  mctx.fillStyle="rgba(255,255,255,0.85)";
+  mctx.beginPath(); mctx.ellipse(gx, gy+16, 34, 44, 0, 0, Math.PI*2); mctx.fill();
+  mctx.beginPath(); mctx.ellipse(gx, gy-20, 28, 38, 0, 0, Math.PI*2); mctx.fill();
+  mctx.globalAlpha=1;
+
+  for(let i=0;i<90;i++){
+    mctx.fillStyle=`rgba(255,255,255,${Math.random()*0.05})`;
+    mctx.fillRect(Math.random()*w, Math.random()*h, 2, 2);
+  }
+
+  mctx.fillStyle="rgba(255,255,255,0.14)";
+  mctx.font="900 28px system-ui";
+  mctx.fillText("REAR VIEW", w*0.36, h*0.62);
+
+  mctx.fillStyle="rgba(255,60,90,0.22)";
+  mctx.font="900 22px system-ui";
+  mctx.fillText("リヤビュー", w*0.40, h*0.40);
+}
+
+/* ===== Menu ===== */
+document.getElementById("startBtn").onclick = ()=>{ playBgm(BGM.title); stageIndex=0; stage=STAGES[0]; progress.current=0; saveProgress(progress); refreshTitleText(); enterPrologue(); };
+document.getElementById("settingsBtn").onclick = ()=>{ const p=document.getElementById("settingsPanel"); p.style.display = (p.style.display==="none"||!p.style.display) ? "block" : "none"; };
+document.getElementById("quitBtn").onclick = ()=>{ stopBgm(); alert("終了。"); };
+document.getElementById("synBtn").onclick = ()=>{
+  alert(`心霊スポットから出た瞬間、駐車場が“空”になっていた。
+車も自販機も看板もない。スマホは圏外。
+割れたミラーには、暗い道と——「距離」が映る。
+幽霊ではなく、“近さ”が追ってくる。`);
+};
+
+/* ===== Prologue ===== */
+let dlgIndex=0;
+let dlgScript=[];
+function buildPrologueScript(){
+  if(stage.id==="easy"){
+    return [
+      {sp:"モブ（通話）", tx:"……出た？近くの有名スポット。ちゃんと生きてる？"},
+      {sp:"主人公（心の声）", tx:"駐車場が……空。車も看板も、来た時の物が消えている。"},
+      {sp:"モブ（通話）", tx:"やめとけって言ったのに。あそこ“帰れない”って噂、マジだぞ。"},
+      {sp:"主人公（心の声）", tx:"スマホは圏外。地図は開くのに、現在地だけが無い。"},
+      {sp:"主人公（心の声）", tx:"割れたミラーを出す。後ろを確認する。"},
+      {sp:"モブ（通話）", tx:"……距離、映ってる。見たらダメだ。見た分だけ近くなる。"},
+      {sp:"主人公", tx:"……走る。"},
+    ];
+  }
+  if(stage.id==="normal"){
+    return [
+      {sp:"モブ（通話）", tx:"隣の県の心霊スポット、今どこ？入口の鳥居、抜けた？"},
+      {sp:"主人公（心の声）", tx:"抜けた瞬間、空気が変わった。駐車場が“空っぽ”。"},
+      {sp:"モブ（通話）", tx:"その県のやつ、地元が近づかない場所だ。救急も来ないって…"},
+      {sp:"主人公（心の声）", tx:"地図は回る。現在地だけが表示されない。"},
+      {sp:"主人公（心の声）", tx:"ミラーを覗く。道の奥に——数字みたいな“距離”。"},
+      {sp:"モブ（通話）", tx:"幽霊じゃない。“近さ”だ。目で確認したら、寄ってくる。"},
+      {sp:"主人公", tx:"……見ないで走る。"},
+    ];
+  }
+  if(stage.id==="hard"){
+    return [
+      {sp:"モブ（通話）", tx:"そこ、惨殺された廃墟の近く…？やばい、戻れ。"},
+      {sp:"主人公（心の声）", tx:"廃墟の壁に、まだ染みが残ってる。匂いが消えない。"},
+      {sp:"モブ（通話）", tx:"あの場所、“怒り”が残るって言われてる。人を“押す”んだよ。"},
+      {sp:"主人公（心の声）", tx:"駐車場が空。逃げ道は一本。両脇は壁。"},
+      {sp:"主人公（心の声）", tx:"ミラーに映るのは影じゃない。縮む距離。"},
+      {sp:"モブ（通話）", tx:"当たるな。転んだら終わる。足元が“流れてくる”。"},
+      {sp:"主人公", tx:"……息が切れる前に、抜ける。"},
+    ];
+  }
+  if(stage.id==="veryhard"){
+    return [
+      {sp:"モブ（通話）", tx:"山の上の廃病院…？救急の出入り口、見つけたらダメだ。"},
+      {sp:"主人公（心の声）", tx:"割れたガラス。外階段。風が、どこかの“病室”みたいに鳴く。"},
+      {sp:"モブ（通話）", tx:"あそこは“治らない”って場所。逃げても、同じ廊下に戻る。"},
+      {sp:"主人公（心の声）", tx:"道が長い。長すぎる。出口が遠いのに、近づいた気がしない。"},
+      {sp:"主人公（心の声）", tx:"ミラーの距離が、呼吸に合わせて縮む。"},
+      {sp:"モブ（通話）", tx:"走るな。走りすぎると倒れる。倒れた瞬間、距離が消える。"},
+      {sp:"主人公", tx:"……歩く、走る、切り替える。"},
+    ];
+  }
+  return [
+    {sp:"モブ（通話）", tx:"そこ……霊媒師が立ち寄らない心霊スポットだ。『触れたら終わり』の方。"},
+    {sp:"主人公（心の声）", tx:"空気が重い。音が遅れる。自分の足音だけが“別の誰か”みたいだ。"},
+    {sp:"モブ（通話）", tx:"“見ない方がいい”。でも見ないと終わる。矛盾してるだろ？"},
+    {sp:"主人公（心の声）", tx:"ミラーに映るのは道じゃない。数字でもない。『近い』そのもの。"},
+    {sp:"モブ（通話）", tx:"もし出口が反転して見えたら……それは出口じゃない。"},
+    {sp:"主人公（心の声）", tx:"走ったら詰む。止まったら詰む。……選ぶしかない。"},
+    {sp:"主人公", tx:"……行く。"},
+  ];
+}
+
+function enterPrologue(){
+  state="prologue";
+  titleUI.style.display="none";
+  hud.style.display="none";
+  dialog.style.display="block";
+// いつでも最初はイージーから開始（1周の中で段階式に進む）
+playBgm(BGM.title);
+
+  dlgIndex=0;
+  dlgScript = buildPrologueScript();
+  showDlg();
+}
+function showDlg(){ const s=dlgScript[dlgIndex]; spk.textContent=s.sp; dlgLine.textContent=s.tx; }
+function nextDlg(){
+  dlgIndex++;
+  if(dlgIndex >= dlgScript.length){
+    dialog.style.display="none";
+    startRun();
+  }else showDlg();
+}
+dialog.addEventListener("pointerdown", ()=>{ nextDlg(); }, {passive:true});
+
+/* ===== Start run ===== */
+function startRun(){
+  state="play";
+  hud.style.display="block";
+
+  const src =
+    stage.id==="easy" ? BGM.easy :
+    stage.id==="normal" ? BGM.normal :
+    stage.id==="hard" ? BGM.hard :
+    stage.id==="veryhard" ? BGM.veryhard :
+    BGM.death;
+  playBgm(src);
+
+  hudStage.textContent = `段階：${stage.name}`;
+  paceLine.textContent = "歩き：遅い / 走り：速い（疲労MAXで失速）";
+
+  obstacles=[];
+  wallCD=0;
+  spawnCD = (stage.id==="easy") ? 120 : 100;
+
+  game = {
+    time:0, dist:0, x:cv.width/2,
+    mash:0, slow:0, shake:0,
+    fat:0, tiredLock:0,
+    ghost:{behind:395},
+    overT:0,
+
+    // ✅ VeryHard & Death：流れてくるスピード緩和
+    obSpeed:
+      stage.id==="easy" ? 1.95 :
+      stage.id==="normal" ? 1.68 :
+      stage.id==="hard" ? 1.74 :
+      stage.id==="veryhard" ? 1.66 :
+      1.70,
+  };
+
+  hudText.textContent = "……後ろを見るな。見ると、近くなる。";
+}
+
+function restart(){ enterPrologue(); }
+
+/* ===== Background / Road ===== */
+function drawBackground(){
+  ctx.fillStyle="#07060d";
+  ctx.fillRect(0,0,cv.width,cv.height);
+
+  const g = ctx.createLinearGradient(0,0,0,cv.height);
+  g.addColorStop(0, "rgba(255,255,255,0.03)");
+  g.addColorStop(0.6, "rgba(255,255,255,0.02)");
+  g.addColorStop(1, "rgba(0,0,0,0.38)");
+  ctx.fillStyle=g; ctx.fillRect(0,0,cv.width,cv.height);
+
+  ctx.fillStyle="rgba(255,255,255,0.02)";
+  const d=game?game.dist:0;
+  for(let i=0;i<80;i++){
+    const x=(i*71 + d*0.20) % cv.width;
+    const h=120 + (i%9)*20;
+    ctx.fillRect(x, 120+(i%6)*14, 12, h);
+  }
+}
+
+function drawRoad(){
+  const topY=CFG.road.topY, bottomY=CFG.road.bottomY;
+  const topW=CFG.road.topW, bottomW=CFG.road.bottomW;
+
+  ctx.fillStyle="rgba(14,14,22,0.95)";
+  ctx.beginPath();
+  ctx.moveTo(cv.width/2-(topW/2+CFG.road.shoulder), topY);
+  ctx.lineTo(cv.width/2+(topW/2+CFG.road.shoulder), topY);
+  ctx.lineTo(cv.width/2+(bottomW/2+CFG.road.shoulder+70), bottomY);
+  ctx.lineTo(cv.width/2-(bottomW/2+CFG.road.shoulder+70), bottomY);
+  ctx.closePath(); ctx.fill();
+
+  const rg = ctx.createLinearGradient(0, topY, 0, bottomY);
+  rg.addColorStop(0, "rgba(120,120,150,0.16)");
+  rg.addColorStop(1, "rgba(60,60,80,0.70)");
+  ctx.fillStyle=rg;
+  ctx.beginPath();
+  ctx.moveTo(cv.width/2-topW/2, topY);
+  ctx.lineTo(cv.width/2+topW/2, topY);
+  ctx.lineTo(cv.width/2+bottomW/2, bottomY);
+  ctx.lineTo(cv.width/2-bottomW/2, bottomY);
+  ctx.closePath(); ctx.fill();
+
+  ctx.strokeStyle="rgba(255,255,255,0.12)";
+  ctx.lineWidth=7;
+  ctx.beginPath();
+  ctx.moveTo(cv.width/2-topW/2, topY);
+  ctx.lineTo(cv.width/2-bottomW/2, bottomY);
+  ctx.moveTo(cv.width/2+topW/2, topY);
+  ctx.lineTo(cv.width/2+bottomW/2, bottomY);
+  ctx.stroke();
+
+  ctx.strokeStyle="rgba(120,255,255,0.07)";
+  for(let i=0;i<18;i++){
+    const t=i/18;
+    const y=topY + t*(bottomY-topY);
+    ctx.globalAlpha = 0.07 + t*0.06;
+    ctx.lineWidth = 2 + t*10;
+    ctx.beginPath();
+    ctx.moveTo(cv.width/2, y);
+    ctx.lineTo(cv.width/2, y+18);
+    ctx.stroke();
+  }
+  ctx.globalAlpha=1;
+
+  const dist = game?game.dist:0;
+  for(let i=0;i<140;i++){
+    const t=(i*0.17 + dist*0.0019)%1;
+    const y=topY + t*(bottomY-topY);
+    const p=t;
+    const half=(topW/2)*(1-p) + (bottomW/2)*p;
+    const x=cv.width/2 + Math.sin(i*9.8)*0.22*half;
+    const s=2 + p*9;
+    ctx.fillStyle=`rgba(0,0,0,${0.05 + p*0.18})`;
+    ctx.fillRect(x,y,s*2.4,s*0.65);
+  }
+}
+
+function drawPlayer(){
+  if(!game) return;
+  const px=game.x, py=430;
+
+  ctx.globalAlpha=0.35;
+  ctx.fillStyle="#000";
+  ctx.beginPath(); ctx.ellipse(px, py+56, 24, 8, 0, 0, Math.PI*2); ctx.fill();
+  ctx.globalAlpha=1;
+
+  const danger = 1 - game.ghost.behind/440;
+  const trem = (danger>0.70) ? (Math.random()-0.5)*1.7 : 0;
+
+  ctx.fillStyle="rgba(245,245,255,0.86)";
+  ctx.fillRect(px-15+trem, py+trem, 30, 38);
+  ctx.beginPath(); ctx.arc(px+trem, py-14+trem, 12, 0, Math.PI*2); ctx.fill();
+
+  ctx.strokeStyle="rgba(245,245,255,0.86)";
+  ctx.lineWidth=5; ctx.lineCap="round";
+  const armSwing = Math.sin(game.time*0.16) * (10 + game.mash*12);
+  ctx.beginPath();
+  ctx.moveTo(px-15+trem, py+8+trem); ctx.lineTo(px-34-armSwing+trem, py+22+trem);
+  ctx.moveTo(px+15+trem, py+8+trem); ctx.lineTo(px+34+armSwing+trem, py+22+trem);
+  ctx.stroke();
+
+  const leg = Math.sin(game.time*0.20) * (10 + game.mash*12);
+  ctx.beginPath();
+  ctx.moveTo(px-7+trem, py+38+trem); ctx.lineTo(px-12-leg+trem, py+56+trem);
+  ctx.moveTo(px+7+trem, py+38+trem); ctx.lineTo(px+12+leg+trem, py+56+trem);
+  ctx.stroke();
+}
+
+/* ===== Ghost / Mirror ===== */
+function drawGhost(x,y,scale, danger){
+  const sN = stage.ghostStage;
+  const t = (game?game.time:0)*0.03;
+  const gx = x + Math.sin(t + x*0.01) * (8*scale);
+  const gy = y + Math.sin(t*1.7) * (6*scale) - (danger*danger)*10;
+
+  const fogLayers = 6 + sN*2;
+  for(let i=0;i<fogLayers;i++){
+    ctx.globalAlpha = (0.06 + i*0.035);
+    ctx.fillStyle = (sN>=4) ? "rgba(255,255,255,0.30)" : "rgba(255,255,255,0.52)";
+    const w = (58 + i*14) * scale;
+    const h = (14 + i*12) * scale;
+    ctx.beginPath();
+    ctx.ellipse(gx, gy + (30 + i*14)*scale, w, h, 0, 0, Math.PI*2);
+    ctx.fill();
+  }
+  ctx.globalAlpha=1;
+
+  if(sN===0){
+    ctx.globalAlpha = 0.45;
+    ctx.fillStyle="rgba(255,255,255,0.85)";
+    ctx.beginPath(); ctx.ellipse(gx, gy+22*scale, 34*scale, 44*scale, 0, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(gx, gy-16*scale, 28*scale, 38*scale, 0, 0, Math.PI*2); ctx.fill();
+    ctx.globalAlpha=1;
+    return;
+  }
+  if(sN===1){
+    ctx.fillStyle="rgba(255,255,255,0.90)";
+    ctx.beginPath(); ctx.ellipse(gx, gy+26*scale, 38*scale, 54*scale, 0, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(gx, gy-20*scale, 32*scale, 46*scale, 0, 0, Math.PI*2); ctx.fill();
+    const eyeY = gy - 30*scale, dx=12*scale;
+    ctx.fillStyle="rgba(0,0,0,0.92)";
+    ctx.beginPath(); ctx.ellipse(gx-dx, eyeY, 8*scale, 12*scale, 0, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(gx+dx, eyeY, 8*scale, 12*scale, 0, 0, Math.PI*2); ctx.fill();
+    return;
+  }
+  if(sN===2){
+    ctx.fillStyle="rgba(255,255,255,0.90)";
+    ctx.beginPath(); ctx.ellipse(gx, gy+28*scale, 42*scale, 58*scale, 0, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(gx, gy-22*scale, 36*scale, 50*scale, 0, 0, Math.PI*2); ctx.fill();
+    const eyeY = gy - 30*scale, dx=13*scale;
+    ctx.fillStyle="rgba(0,0,0,0.95)";
+    ctx.beginPath(); ctx.ellipse(gx-dx, eyeY, 9*scale, 13*scale, 0, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(gx+dx, eyeY, 9*scale, 13*scale, 0, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle="rgba(0,0,0,0.88)";
+    ctx.lineWidth=5*scale;
+    ctx.beginPath(); ctx.moveTo(gx-18*scale, gy-6*scale); ctx.lineTo(gx+18*scale, gy-6*scale); ctx.stroke();
+    return;
+  }
+  if(sN===3){
+    ctx.fillStyle="rgba(255,255,255,0.88)";
+    ctx.beginPath(); ctx.ellipse(gx, gy+30*scale, 44*scale, 62*scale, 0, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(gx, gy-24*scale, 38*scale, 54*scale, 0, 0, Math.PI*2); ctx.fill();
+    ctx.globalAlpha=0.35;
+    ctx.beginPath(); ctx.ellipse(gx+16*scale, gy-18*scale, 30*scale, 42*scale, 0, 0, Math.PI*2); ctx.fill();
+    ctx.globalAlpha=1;
+    const eyeY = gy - 32*scale, dx=13*scale;
+    ctx.fillStyle="rgba(0,0,0,0.95)";
+    ctx.beginPath(); ctx.ellipse(gx-dx, eyeY, 9*scale, 13*scale, 0, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(gx+dx, eyeY, 9*scale, 13*scale, 0, 0, Math.PI*2); ctx.fill();
+    for(let i=0;i<220;i++){
+      ctx.fillStyle="rgba(255,255,255,0.04)";
+      ctx.fillRect(gx + (Math.random()*2-1)*80*scale, gy + (Math.random()*2-1)*95*scale, 2, 2);
+    }
+    return;
+  }
+  ctx.fillStyle="rgba(255,255,255,0.86)";
+  ctx.beginPath(); ctx.ellipse(gx, gy+32*scale, 48*scale, 68*scale, 0, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(gx, gy-26*scale, 42*scale, 58*scale, 0, 0, Math.PI*2); ctx.fill();
+  const eyeY = gy - 34*scale, dx=14*scale;
+  ctx.fillStyle="rgba(0,0,0,0.98)";
+  ctx.beginPath(); ctx.ellipse(gx-dx, eyeY, 8*scale, 18*scale, 0, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(gx+dx, eyeY, 8*scale, 18*scale, 0, 0, Math.PI*2); ctx.fill();
+  for(let i=0;i<360;i++){
+    ctx.fillStyle=`rgba(255,255,255,${0.02 + danger*0.05})`;
+    ctx.fillRect(gx + (Math.random()*2-1)*95*scale, gy + (Math.random()*2-1)*110*scale, 2, 2);
+  }
+}
+
+function roundRect(c,x,y,w,h,r,fill,stroke){
+  c.beginPath();
+  c.moveTo(x+r,y);
+  c.arcTo(x+w,y,x+w,y+h,r);
+  c.arcTo(x+w,y+h,x,y+h,r);
+  c.arcTo(x,y+h,x,y,r);
+  c.arcTo(x,y,x+w,y,r);
+  c.closePath();
+  if(fill) c.fill();
+  if(stroke) c.stroke();
+}
+
+function drawMirrorGameplay(){
+  const mx=cv.width/2, my=76, mw=560, mh=84;
+  ctx.fillStyle="rgba(10,9,18,0.70)";
+  ctx.strokeStyle="rgba(255,255,255,0.14)";
+  ctx.lineWidth=2;
+  roundRect(ctx, mx-mw/2, my-mh/2, mw, mh, 16, true, true);
+
+  ctx.strokeStyle="rgba(255,255,255,0.10)";
+  ctx.lineWidth=1;
+  for(let i=0;i<6;i++){
+    ctx.beginPath();
+    ctx.moveTo(mx-mw/2 + 40 + i*80, my-mh/2+10);
+    ctx.lineTo(mx-mw/2 + 20 + i*80 + rnd(-18,18), my+mh/2-10);
+    ctx.stroke();
+  }
+
+  ctx.save();
+  ctx.beginPath();
+  roundRect(ctx, mx-mw/2+8, my-mh/2+8, mw-16, mh-16, 12, false, false);
+  ctx.clip();
+
+  ctx.fillStyle="rgba(0,0,0,0.24)";
+  ctx.fillRect(mx-mw/2, my-mh/2, mw, mh);
+
+  ctx.fillStyle="rgba(255,255,255,0.10)";
+  ctx.beginPath();
+  ctx.moveTo(mx-100, my+34);
+  ctx.lineTo(mx+100, my+34);
+  ctx.lineTo(mx+240, my-34);
+  ctx.lineTo(mx-240, my-34);
+  ctx.closePath();
+  ctx.fill();
+
+  const danger = 1 - game.ghost.behind/440;
+  const scale = 0.18 + danger*0.95;
+  drawGhost(mx, my+12, scale, danger);
+
+  const n=Math.floor(40 + danger*220);
+  for(let i=0;i<n;i++){
+    const a=0.02 + danger*0.05;
+    ctx.fillStyle=`rgba(255,255,255,${a})`;
+    ctx.fillRect(mx-mw/2 + Math.random()*mw, my-mh/2 + Math.random()*mh, 2, 2);
+  }
+  if(danger>0.72){
+    ctx.globalAlpha=(danger-0.72)*0.70;
+    ctx.fillStyle="rgba(255,60,90,0.22)";
+    ctx.fillRect(mx-mw/2, my-mh/2, mw, mh);
+    ctx.globalAlpha=1;
+  }
+  ctx.restore();
+
+  ctx.fillStyle="rgba(255,255,255,0.60)";
+  ctx.font="12px system-ui";
+  ctx.fillText("OBJECTS IN MIRROR ARE CLOSER THAN THEY APPEAR", mx-mw/2+16, my-mh/2-10);
+}
+
+/* ✅ 道路に幽霊は出さない */
+function drawWorldGhost(){ return; }
+
+/* ===== Obstacles ===== */
+function spawnObstacle(){
+  if(spawnCD>0) return;
+
+  // ✅ VeryHard / DEATH：間隔を広げる
+  spawnCD =
+    stage.id==="easy" ? Math.floor(rnd(85, 135)) :
+    stage.id==="normal" ? Math.floor(rnd(78, 125)) :
+    stage.id==="hard" ? Math.floor(rnd(74, 120)) :
+    stage.id==="veryhard" ? Math.floor(rnd(82, 135)) :
+    Math.floor(rnd(88, 145));
+
+  const barrierChance =
+    stage.id==="easy" ? 0.34 :
+    stage.id==="normal" ? 0.50 :
+    stage.id==="hard" ? 0.60 :
+    stage.id==="veryhard" ? 0.68 :
+    0.76;
+
+  const y = CFG.obstacleSpawnY;
+
+  if(Math.random() < barrierChance){
+    const gapRatio = clamp(0.24 * stage.gapScale, 0.12, 0.28);
+    const gapPos = rnd(gapRatio/2, 1 - gapRatio/2);
+    const thickness =
+      stage.id==="easy" ? rnd(22,34) :
+      stage.id==="normal" ? rnd(28,40) :
+      stage.id==="hard" ? rnd(34,48) :
+      stage.id==="veryhard" ? rnd(40,58) :
+      rnd(50,70);
+    obstacles.push({ kind:"barrier", y, gapPos, gapRatio, h: thickness, hit:false });
+    return;
+  }
+
+  const ry = CFG.road.topY + 12;
+  const L = roadLeft(ry) + 6;
+  const R = roadRight(ry) - 6;
+  const roadW = (R-L);
+
+  const edgeBias = Math.random();
+  let x;
+  if(edgeBias < 0.42) x = rnd(L, L + roadW*0.28);
+  else if(edgeBias < 0.84) x = rnd(R - roadW*0.28, R);
+  else x = rnd(L, R);
+
+  const sizeScale =
+    stage.id==="easy" ? 0.90 :
+    stage.id==="normal" ? 1.02 :
+    stage.id==="hard" ? 1.16 :
+    stage.id==="veryhard" ? 1.30 :
+    1.48;
+
+  obstacles.push({
+    kind:"block",
+    x, y,
+    w: rnd(66, 130) * sizeScale,
+    h: rnd(22, 44) * sizeScale,
+    hit:false
+  });
+}
+
+function barrierAtY(o){
+  const L = roadLeft(o.y) + 6;
+  const R = roadRight(o.y) - 6;
+  const roadW = R - L;
+  const gapW = roadW * o.gapRatio;
+  const gapX = L + roadW * o.gapPos;
+  return {L,R,roadW,gapX,gapW};
+}
+
+function hitPlayer(o){
+  const px=game.x, py=430;
+  const pw=66, ph=82;
+
+  if(o.kind==="block"){
+    const ow=o.w*0.95, oh=o.h*1.10;
+    return (Math.abs(o.x-px) < (ow/2+pw/2)) && (Math.abs(o.y-py) < (oh/2+ph/2));
+  }
+
+  const oh=o.h*1.10;
+  if(Math.abs(o.y - py) >= (oh/2 + ph/2)) return false;
+
+  const {gapX, gapW} = barrierAtY(o);
+  const inGap = (px > (gapX - gapW/2)) && (px < (gapX + gapW/2));
+  return !inGap;
+}
+
+function drawObstacles(){
+  for(const o of obstacles){
+    if(o.kind==="block"){
+      ctx.fillStyle=o.hit ? "rgba(255,60,90,0.35)" : "rgba(255,255,255,0.18)";
+      ctx.fillRect(o.x-o.w/2, o.y-o.h/2, o.w, o.h);
+      ctx.fillStyle="rgba(0,0,0,0.18)";
+      ctx.fillRect(o.x-o.w/2, o.y-o.h/2, o.w, Math.max(6, o.h*0.20));
+      continue;
+    }
+
+    const {L,R,gapX,gapW} = barrierAtY(o);
+    const h=o.h, y=o.y;
+
+    ctx.fillStyle=o.hit ? "rgba(255,60,90,0.30)" : "rgba(255,255,255,0.14)";
+
+    const leftW = (gapX - gapW/2) - L;
+    if(leftW > 2) ctx.fillRect(L, y-h/2, leftW, h);
+
+    const rightX = (gapX + gapW/2);
+    const rightW = R - rightX;
+    if(rightW > 2) ctx.fillRect(rightX, y-h/2, rightW, h);
+
+    ctx.fillStyle="rgba(0,0,0,0.18)";
+    if(leftW > 2) ctx.fillRect(L, y-h/2, leftW, Math.max(6, h*0.22));
+    if(rightW > 2) ctx.fillRect(rightX, y-h/2, rightW, Math.max(6, h*0.22));
+
+    ctx.strokeStyle="rgba(120,255,255,0.09)";
+    ctx.lineWidth=2;
+    ctx.strokeRect(gapX-gapW/2, y-h/2, gapW, h);
+  }
+}
+
+/* ===== Wall hit ===== */
+function wallHit(){
+  if(wallCD>0) return;
+  wallCD = 14;
+  game.slow = Math.min(0.86, game.slow + stage.wallPunish);
+  game.shake = Math.min(CFG.shakeMax, game.shake + 6);
+  hitSfx();
+}
+
+function clampPlayerToRoad(){
+  const py = 430;
+  const L = roadLeft(py) + 12;
+  const R = roadRight(py) - 12;
+  if(game.x < L){ game.x=L; wallHit(); }
+  if(game.x > R){ game.x=R; wallHit(); }
+}
+
+function storyLine(){
+  const p = clamp(game.dist / stage.goal, 0, 1);
+  if(p < 0.15) return "……息を整えろ。焦った方が負ける。";
+  if(p < 0.35) return "ミラーは“確認”じゃない。呼び出しだ。";
+  if(p < 0.55) return "当たるな。近さが増える。";
+  if(p < 0.75) return "出口が見えた？……本当に？";
+  return "反転する看板——それは出口じゃない。";
+}
+
+/* ===== Credits draw ===== */
+function drawEnding(){
+  ctx.fillStyle="rgba(0,0,0,0.86)";
+  ctx.fillRect(0,0,cv.width,cv.height);
+  ctx.textAlign="center";
+  ctx.font="900 34px system-ui";
+  ctx.fillStyle="rgba(255,255,255,0.95)";
+  ctx.fillText("エンディング", cv.width/2, 86);
+
+  // subtle vignette
+  const v = ctx.createRadialGradient(cv.width/2, cv.height/2, 120, cv.width/2, cv.height/2, 700);
+  v.addColorStop(0, "rgba(0,0,0,0)");
+  v.addColorStop(1, "rgba(0,0,0,0.55)");
+  ctx.fillStyle=v; ctx.fillRect(0,0,cv.width,cv.height);
+
+  let y = endingY;
+  for(let i=0;i<ENDING.length;i++){
+    const line = ENDING[i];
+    const isHint = (i===ENDING.length-1);
+    ctx.font = isHint ? "14px system-ui" : "20px system-ui";
+    ctx.fillStyle = isHint ? "rgba(255,255,255,0.72)" : "rgba(255,255,255,0.88)";
+    ctx.fillText(line, cv.width/2, y);
+    y += isHint ? 28 : 36;
+  }
+  ctx.textAlign="left";
+}
+
+function drawCredits(){
+  ctx.fillStyle="rgba(0,0,0,0.82)";
+  ctx.fillRect(0,0,cv.width,cv.height);
+
+  ctx.textAlign="center";
+  let y = creditsY;
+
+  for(let i=0;i<CREDITS.length;i++){
+    const line = CREDITS[i];
+    const isTitle = (i===0);
+    ctx.font = isTitle ? "900 36px system-ui" : "20px system-ui";
+    ctx.fillStyle = isTitle ? "rgba(255,255,255,0.96)" : "rgba(255,255,255,0.86)";
+    ctx.fillText(line, cv.width/2, y);
+    y += isTitle ? 54 : 34;
+  }
+
+  ctx.font="12px system-ui";
+  ctx.fillStyle="rgba(255,255,255,0.65)";
+  ctx.fillText("Space：タイトルへ", cv.width/2, cv.height - 22);
+  ctx.textAlign="left";
+}
+
+/* ===== Update ===== */
+function update(){
+  if(state!=="play" || !game) return;
+  game.time++;
+
+  if(wallCD>0) wallCD--;
+  if(spawnCD>0) spawnCD--;
+
+  let move=0;
+  if(Input.down["a"]) move -= 1;
+  if(Input.down["d"]) move += 1;
+  game.x += move * CFG.sideSpeed * (stage.sideMul ?? 1.0) * (1 - 0.35*game.slow);
+  clampPlayerToRoad();
+
+  if(consumeJust(" ")){
+    game.mash = Math.min(1.0, game.mash + CFG.mashPower/10);
+  }
+  game.mash = Math.max(0, game.mash - CFG.mashDecay/100);
+
+  if(game.tiredLock>0) game.tiredLock--;
+  const wantsSprint = (game.mash > 0.20) && (game.tiredLock<=0);
+
+  if(wantsSprint){
+    game.fat = Math.min(CFG.fatMax, game.fat + CFG.fatGain);
+    if(game.fat >= CFG.fatMax){
+      game.tiredLock = CFG.tiredLockFrames; // ✅ 1〜2秒走れない
+      game.shake = Math.min(CFG.shakeMax, game.shake + 4);
+    }
+  }else{
+    game.fat = Math.max(0, game.fat - CFG.fatRecover);
+  }
+  if(game.tiredLock>0){
+    game.fat = Math.max(0, game.fat - CFG.fatRecover*1.7);
+  }
+
+  let speed = CFG.walkSpeed;
+  if(wantsSprint){
+    speed += CFG.sprintBoost * game.mash * (1 - game.fat/CFG.fatMax);
+  }
+  if(game.tiredLock>0) speed *= 0.72;
+  speed *= (1 - game.slow);
+  game.dist += speed;
+
+  game.slow = Math.max(0, game.slow - CFG.slowRecover);
+
+  if(Math.random() < stage.obstacleRate) spawnObstacle();
+
+  for(const o of obstacles){
+    const base = (game.obSpeed ?? CFG.obstacleSpeed);
+    o.y += base + speed*0.26; // ✅ 全体的に少し落ち着く
+  }
+
+  for(const o of obstacles){
+    if(!o.hit && hitPlayer(o)){
+      o.hit=true;
+
+      game.slow = Math.min(0.90, game.slow + CFG.hitSlowAdd);
+      game.shake = Math.min(CFG.shakeMax, game.shake + 6);
+      hitSfx();
+
+            // 障害物ヒット：失速により幽霊が距離を詰める（直接ワープはさせない）
+      // 失速量を少し強めて、追跡圧を増やす
+      game.slow = Math.min(0.90, game.slow + (stage.id==="easy" ? 0.06 : stage.id==="normal" ? 0.075 : stage.id==="hard" ? 0.09 : stage.id==="veryhard" ? 0.11 : 0.045));
+    }
+  }
+  obstacles = obstacles.filter(o => o.y < CFG.obstacleYKill);
+
+  const sprintRelief = wantsSprint ? -0.28 : 0.16;
+  const tiredPenalty = (game.tiredLock>0) ? 0.22 : 0.0;
+
+  const ghostSpeed = stage.ghostBase + tiredPenalty + game.slow*0.45 + sprintRelief;
+  game.ghost.behind += (speed - ghostSpeed);
+  game.ghost.behind = clamp(game.ghost.behind, 0, 440);
+
+  hudText.textContent = storyLine();
+  fatFill.style.width = (clamp(game.fat/CFG.fatMax,0,1)*100).toFixed(1) + "%";
+  fatFill.style.background = (game.tiredLock>0) ? "rgba(120,255,255,.55)" : "rgba(255,60,90,.86)";
+  distFill.style.width = (clamp(game.dist/stage.goal,0,1)*100).toFixed(1) + "%";
+
+  if(game.ghost.behind <= CFG.ghostCatchDist){
+    state="over";
+    game.overT=170;
+    screamSfx();
+  }
+  if(game.dist >= stage.goal){
+    state="clear";
+    onClear();
+  }
+}
+
+/* ===== End / Clear ===== */
+function drawEnd(){
+  if(state!=="over" && state!=="clear") return;
+  ctx.fillStyle="rgba(0,0,0,0.62)";
+  ctx.fillRect(0,0,cv.width,cv.height);
+  ctx.textAlign="center";
+  ctx.fillStyle="rgba(255,255,255,0.92)";
+  ctx.font="900 36px system-ui";
+
+  if(state==="clear"){
+    ctx.fillText("脱出成功", cv.width/2, cv.height/2 - 16);
+    ctx.font="16px system-ui";
+    ctx.fillStyle="rgba(255,255,255,0.78)";
+    ctx.fillText(stage.id==="death" ? "R：エンディングへ" : "R：続ける（次の段階へ）", cv.width/2, cv.height/2 + 20);
+  }else{
+    ctx.fillText("捕まった", cv.width/2, 92);
+    ctx.font="16px system-ui";
+    ctx.fillStyle="rgba(255,255,255,0.78)";
+    ctx.fillText("R：再挑戦", cv.width/2, cv.height - 44);
+  }
+  ctx.textAlign="left";
+}
+
+function onClear(){
+  // 段階式進行：クリア時に次段階へ（DEATHはエンディングへ）
+  if(stage.id==="death"){
+    // 完走：解放は最大まで、次回タイトルはイージー開始へ戻す
+    progress.unlocked = 4;
+    progress.current = 0;
+    saveProgress(progress);
+    refreshTitleText();
+
+    // ワンテンポ置いてからエンディング
+    state = "deathwait";
+    deathWait = 55;
+    playBgm(BGM.title);
+    return;
+  }
+
+  // 通常クリア：次段階を解放して current を進める
+  if(progress.unlocked < 4 && stageIndex === progress.unlocked){
+    progress.unlocked = Math.min(4, progress.unlocked + 1);
+  }
+  stageIndex = Math.min(4, stageIndex + 1);
+  progress.current = Math.min(progress.unlocked, stageIndex);
+  saveProgress(progress);
+  refreshTitleText();
+}
+
+/* ===== Draw / Loop ===== */
+function drawVignette(){
+  if(state!=="play" || !game) return;
+  const danger = 1 - game.ghost.behind/440;
+  const v = ctx.createRadialGradient(cv.width/2, cv.height/2, 140, cv.width/2, cv.height/2, 650);
+  v.addColorStop(0, "rgba(0,0,0,0)");
+  v.addColorStop(1, `rgba(0,0,0,${0.56 + danger*0.18})`);
+  ctx.fillStyle=v; ctx.fillRect(0,0,cv.width,cv.height);
+  if(danger>0.74){
+    ctx.globalAlpha=(danger-0.74)*0.72;
+    ctx.fillStyle="rgba(255,60,90,0.14)";
+    ctx.fillRect(0,0,cv.width,cv.height);
+    ctx.globalAlpha=1;
+  }
+}
+
+function draw(){
+  if(state==="credits"){ drawCredits(); return; }
+  if(state==="ending"){ drawEnding(); return; }
+
+  const sh = (state==="play" && game) ? game.shake : 0;
+  const sx=(Math.random()-0.5)*sh;
+  const sy=(Math.random()-0.5)*sh;
+  if(state==="play" && game && game.shake>0) game.shake = Math.max(0, game.shake - 0.6);
+
+  ctx.setTransform(1,0,0,1,sx,sy);
+  ctx.clearRect(-80,-80,cv.width+160,cv.height+160);
+
+  drawBackground();
+  drawRoad();
+
+  if(state==="play" && game){
+    drawWorldGhost();
+    drawObstacles();
+    drawPlayer();
+    drawMirrorGameplay();
+    drawVignette();
+  }
+
+  ctx.setTransform(1,0,0,1,0,0);
+  drawEnd();
+}
+
+/* ===== Controls ===== */
+addEventListener("keydown",(e)=>{
+  const k=e.key.toLowerCase();
+
+  if(state==="credits"){
+    if(k===" "){
+      state="title";
+    }
+    return;
+  }
+
+  if(state==="title"){
+    if(k===" ") document.getElementById("startBtn").click();
+    return;
+  }
+  if(state==="prologue"){
+    if(k===" ") nextDlg();
+    return;
+  }
+  if(state==="play"){
+    if(k==="r") restart();
+    return;
+  }
+  if(state==="clear"){
+    if(k==="r"){
+      if(stage.id==="death"){
+        // onClear() で ending にしているが、念のためここでも遷移
+        state="ending";
+      endingY = 160;
+      endingAuto = 240;
+        playBgm(BGM.title);
+      }else{
+        // 次段階へ（onClearで stageIndex を進めている）
+        stage = STAGES[stageIndex];
+        enterPrologue();
+      }
+    }
+    return;
+  }
+  if(state==="over"){
+    if(k==="r") restart();
+    return;
+  }
+});
+
+/* ===== Loop ===== */
+function loop(){
+  if(state==="title"){
+    playBgm(BGM.title);
+    titleUI.style.display="flex";
+    hud.style.display="none";
+    dialog.style.display="none";
+    drawTitleMirror();
+    draw();
+  }else if(state==="deathwait"){
+    titleUI.style.display="none";
+    hud.style.display="none";
+    dialog.style.display="none";
+    deathWait--;
+    // 余韻画面
+    ctx.fillStyle="rgba(0,0,0,0.82)";
+    ctx.fillRect(0,0,cv.width,cv.height);
+    ctx.textAlign="center";
+    ctx.font="900 30px system-ui";
+    ctx.fillStyle="rgba(255,255,255,0.92)";
+    ctx.fillText("……", cv.width/2, cv.height/2 - 10);
+    ctx.font="14px system-ui";
+    ctx.fillStyle="rgba(255,255,255,0.70)";
+    ctx.fillText("息を整える", cv.width/2, cv.height/2 + 20);
+    ctx.textAlign="left";
+    if(deathWait<=0){
+      state="ending";
+      endingY = 160;
+    }
+  }else if(state==="ending"){
+    titleUI.style.display="none";
+    hud.style.display="none";
+    dialog.style.display="none";
+    // little float
+    endingY -= 0.15;
+    draw();
+    // proceed to credits
+    if(consumeJust(" ") || consumeJust("enter") || consumeJust("tap") || consumeJust("r")){
+      state="credits";
+      creditsY = cv.height + 40;
+      playBgm(BGM.title);
+    }
+  }else if(state==="credits"){
+    titleUI.style.display="none";
+    hud.style.display="none";
+    dialog.style.display="none";
+    creditsY -= 1.25;
+    draw();
+    if(creditsY < -260){
+      progress.current = 0;
+      stageIndex = 0;
+      stage = STAGES[0];
+      saveProgress(progress);
+      refreshTitleText();
+      state="title";
+    }
+  }else{
+    titleUI.style.display="none";
+    draw();
+    update();
+    if(state==="over" && game){
+      game.overT--;
+      if(game.overT<0) game.overT=0;
+    }
+  }
+  tickInput();
+  requestAnimationFrame(loop);
+}
+
+playBgm(BGM.title);
+loop();
+</script>
+</body>
+</html>
