@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>縫牢街 - ホームページ</title>
+
+  <style>
+    :root{
+      --bg: url('bg.jpg');
+      --panel: rgba(0,0,0,.42);
+      --panel2: rgba(0,0,0,.32);
+      --line: rgba(255,255,255,.12);
+      --text: rgba(255,255,255,.92);
+      --muted: rgba(255,255,255,.72);
+      --shadow: rgba(0,0,0,.55);
+      --radius: 18px;
+    }
+
+    *{ box-sizing:border-box; }
+    html,body{ height:100%; margin:0; }
+    body{
+      color: var(--text);
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      background: #05040a;
+      overflow-x:hidden;
+    }
+
+    /* 背景：消えない + 明るく */
+    body::before{
+      content:"";
+      position:fixed; inset:0;
+      background-image: var(--bg);
+      background-size: cover;
+      background-position: center;
+      background-repeat: no-repeat;
+      transform: scale(1.03);
+      filter: brightness(1.18) contrast(1.05) saturate(1.08);
+      z-index:-2;
+    }
+    /* うっすら暗幕（暗すぎない） */
+    body::after{
+      content:"";
+      position:fixed; inset:0;
+      background:
+        radial-gradient(1200px 700px at 70% 30%, rgba(0,0,0,.20), rgba(0,0,0,.55)),
+        linear-gradient(to bottom, rgba(0,0,0,.25), rgba(0,0,0,.55));
+      z-index:-1;
+    }
+
+    .wrap{
+      max-width: 1100px;
+      margin: 32px auto 64px;
+      padding: 0 16px;
+    }
+
+    .hero h1{
+      margin: 0 0 6px;
+      letter-spacing: .02em;
+      font-size: 28px;
+      text-shadow: 0 10px 30px var(--shadow);
+    }
+    .hero p{
+      margin: 0 0 18px;
+      color: var(--muted);
+      line-height: 1.6;
+      text-shadow: 0 10px 30px var(--shadow);
+    }
+
+    .grid{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+    @media (max-width: 860px){
+      .grid{ grid-template-columns: 1fr; }
+    }
+
+    .card{
+      background: linear-gradient(to bottom, var(--panel), var(--panel2));
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: 0 20px 60px rgba(0,0,0,.35);
+      padding: 18px;
+      backdrop-filter: blur(6px);
+    }
+    .card h2{
+      margin: 0 0 12px;
+      font-size: 18px;
+      display:flex;
+      align-items:center;
+      gap:10px;
+    }
+    .pill{
+      display:inline-flex;
+      align-items:center;
+      padding: 3px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: rgba(0,0,0,.25);
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .btnRow{
+      display:flex;
+      gap: 10px;
+      flex-wrap:wrap;
+      margin: 10px 0 12px;
+    }
+    .btn{
+      appearance:none;
+      border: 1px solid var(--line);
+      background: rgba(0,0,0,.25);
+      color: var(--text);
+      padding: 10px 14px;
+      border-radius: 12px;
+      cursor:pointer;
+      font-weight: 650;
+      letter-spacing:.02em;
+      transition: transform .08s ease, background .15s ease, border-color .15s ease;
+    }
+    .btn:hover{
+      background: rgba(255,255,255,.06);
+      border-color: rgba(255,255,255,.18);
+    }
+    .btn:active{ transform: translateY(1px); }
+
+    .note{
+      margin-top: 10px;
+      font-size: 12px;
+      color: rgba(255,255,255,.75);
+      line-height: 1.5;
+    }
+
+    /* 音楽 */
+    .musicTop{
+      display:flex;
+      gap: 10px;
+      align-items:center;
+      flex-wrap:wrap;
+      margin-bottom: 12px;
+    }
+    audio{
+      width: 100%;
+      margin: 8px 0 12px;
+      border-radius: 14px;
+    }
+    .list{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    @media (max-width: 700px){
+      .list{ grid-template-columns: 1fr; }
+    }
+    .track{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap: 10px;
+      padding: 10px 12px;
+      border-radius: 14px;
+      border: 1px solid var(--line);
+      background: rgba(0,0,0,.22);
+      cursor:pointer;
+      user-select:none;
+    }
+    .track:hover{
+      background: rgba(255,255,255,.06);
+      border-color: rgba(255,255,255,.18);
+    }
+    .track small{
+      color: rgba(255,255,255,.65);
+      font-size: 12px;
+    }
+    .playIcon{
+      opacity:.9;
+      font-weight:800;
+      border: 1px solid var(--line);
+      background: rgba(0,0,0,.18);
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+    <div class="hero">
+      <h1>縫牢街で、存在は作品になる。</h1>
+      <p>縫牢街（ほうろうがい）で存在を縫い直してる。そして作品が出来てくる。</p>
+    </div>
+
+    <div class="grid">
+      <section class="card">
+        <h2>縫魔妖斗とは <span class="pill">プロフィール</span></h2>
+        <div style="line-height:1.7; color:rgba(255,255,255,.86);">
+          <div>名前：縫魔妖斗</div>
+          <div>AIと音源とゲームを作ったりしてます</div>
+          <br/>
+          <div style="color:rgba(255,255,255,.72);">
+            好きな音楽：メロディーが心に残る物（基本AIジャンル）<br/>
+            好きなゲーム：ロックマン / 龍が如くシリーズ / 他いろいろ
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>ゲーム <span class="pill">縫牢街のゲームセンター</span></h2>
+
+        <div class="btnRow">
+          <button class="btn" onclick="openGame('rearview1/')">リアビュー1を開く</button>
+          <button class="btn" onclick="openGame('rearview2/')">リアビュー2を開く</button>
+        </div>
+
+        <div style="font-size:13px; line-height:1.6; color:rgba(255,255,255,.8);">
+          <div style="font-weight:700; margin-top:6px;">リアビュー1 操作</div>
+          A：左 / D：右 / Space：走る<br/>
+          追いかけてくる幽霊から逃げる。障害物を避けながら目的地まで逃げよう。<br/><br/>
+
+          <div style="font-weight:700;">リアビュー2 操作</div>
+          W：上 / A：左 / D：右 / S：下 のみ<br/>
+          都市伝説の攻撃を目的地に着くまで回避。攻撃予告を見て範囲外へ避けて下さい。
+        </div>
+
+        <hr style="border:none; border-top:1px solid var(--line); margin:14px 0;" />
+
+        <h2 style="margin-top:0;">memorydraw <span class="pill">New</span></h2>
+        <div style="font-size:13px; line-height:1.6; color:rgba(255,255,255,.8); margin-bottom:10px;">
+          判断と記憶で撃ち抜けというゲームです。
+        </div>
+        <div class="btnRow">
+          <button class="btn" onclick="openGame('memorydraw/')">memorydraw を開く</button>
+        </div>
+
+        <div class="note">
+          ※ローカルで「ファイルが見つかりません」になりやすい時は、フォルダでサーバー起動が確実です。<br/>
+          例：<code>python -m http.server 8000</code> → <code>http://localhost:8000/</code>
+        </div>
+      </section>
+    </div>
+
+    <section class="card" style="margin-top:14px;">
+      <h2>音源 <span class="pill">縫牢街の楽曲達</span></h2>
+      <div class="musicTop">
+        <div style="color:rgba(255,255,255,.8); font-size:13px;">
+          聴いてみたい音源を押す → 再生（端末によっては再生ボタンが必要な場合あり）
+        </div>
+      </div>
+
+      <div class="btnRow" style="margin-top:6px;">
+        <button class="btn" id="btnMusic"  onclick="setPlaylist('music')">music</button>
+        <button class="btn" id="btnMusic2" onclick="setPlaylist('music2')">music2</button>
+        <button class="btn" id="btnMusic3" onclick="setPlaylist('music3')">music3</button>
+      </div>
+
+      <audio id="player" controls preload="none"></audio>
+
+      <div class="list" id="trackList"></div>
+    </section>
+  </div>
+
+  <script>
+    // ★ここが「フォルダ名 + ファイル名」前提（あなたの構成に合わせてある）
+    const PLAYLISTS = {
+      music:  ['track01.mp3','track02.mp3','track03.mp3','track04.mp3','track05.mp3','track06.mp3'],
+      music2: ['track07.mp3','track08.mp3','track09.mp3','track10.mp3','track11.mp3','track12.mp3','track13.mp3'],
+      music3: ['track14.mp3','track15.mp3','track16.mp3','track17.mp3','track18.mp3','track19.mp3','track20.mp3'],
+    };
+
+    const player = document.getElementById('player');
+    const trackListEl = document.getElementById('trackList');
+
+    function openGame(folder){
+      // folder は "rearview1/" みたいに末尾スラッシュ推奨
+      const url = folder.endsWith('/') ? (folder + 'index.html') : (folder + '/index.html');
+      window.location.href = url;
+    }
+
+    function highlight(activeKey){
+      const map = { music:'btnMusic', music2:'btnMusic2', music3:'btnMusic3' };
+      Object.keys(map).forEach(k=>{
+        const el = document.getElementById(map[k]);
+        if(!el) return;
+        el.style.background = (k === activeKey) ? 'rgba(255,255,255,.10)' : 'rgba(0,0,0,.25)';
+        el.style.borderColor = (k === activeKey) ? 'rgba(255,255,255,.22)' : 'rgba(255,255,255,.12)';
+      });
+    }
+
+    function buildPath(folder, file){
+      // GitHub Pagesでもローカルでも相対でOK
+      return `${folder}/${file}`;
+    }
+
+    function setPlaylist(key){
+      const list = PLAYLISTS[key];
+      if(!list || !list.length) return;
+
+      highlight(key);
+      trackListEl.innerHTML = '';
+
+      // 先頭をセット（押したら再生できる）
+      const firstSrc = buildPath(key, list[0]);
+      player.src = firstSrc;
+
+      list.forEach((file)=>{
+        const src = buildPath(key, file);
+        const row = document.createElement('div');
+        row.className = 'track';
+        row.onclick = () => {
+          player.src = src;
+          player.play().catch(()=>{/* 端末仕様でブロックされてもOK */});
+        };
+
+        const left = document.createElement('div');
+        left.innerHTML = `<div style="font-weight:700">${src}</div><small>${key} / ${file}</small>`;
+
+        const right = document.createElement('div');
+        right.className = 'playIcon';
+        right.textContent = '▶';
+
+        row.appendChild(left);
+        row.appendChild(right);
+        trackListEl.appendChild(row);
+      });
+    }
+
+    // 起動時：music を表示
+    setPlaylist('music');
+  </script>
+</body>
+</html>
