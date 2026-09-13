@@ -1,0 +1,1425 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="robots" content="noindex, follow">
+    <meta name="description" content="指でなぞって迫り来るゴミやダストを消す、お掃除ディフェンス×反射アクションゲーム。">
+    <link rel="canonical" href="../../games/cleaning-bubble/">
+    <title>Cleaning BUBBLE</title>
+    <link rel="stylesheet" href="cleaning-bubble.css">
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #000;
+            font-family: ui-rounded, 'Hiragino Maru Gothic ProN', 'Yu Gothic', Meiryo, sans-serif;
+            touch-action: none;
+            user-select: none;
+            -webkit-user-select: none;
+            width: 100vw;
+            height: 100vh;
+            height: 100dvh;
+        }
+
+        #gameContainer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #000;
+        }
+
+        canvas {
+            display: block;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+
+        #flashOverlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #fff;
+            opacity: 0;
+            pointer-events: none;
+            z-index: 25;
+        }
+
+        .screen-modal {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0, 0, 0, 0.92);
+            z-index: 50;
+            padding: 20px;
+        }
+
+        .hidden { display: none !important; }
+
+        .ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 16px;
+            padding-bottom: 70px;
+        }
+
+        .interactive { pointer-events: auto; cursor: pointer; }
+
+        button:focus-visible,
+        .shop-card:focus-visible {
+            outline: 3px solid #fef08a;
+            outline-offset: 4px;
+        }
+        
+        .hud-text { 
+            text-shadow: 0 0 5px rgba(255,255,255,0.5), 2px 2px 0 #000, -1px -1px 0 #000; 
+            letter-spacing: 1px;
+        }
+
+        .score-juice {
+            animation: scorePop 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            color: #fbbf24 !important;
+            text-shadow: 0 0 20px #f59e0b, 2px 2px 0 #000 !important;
+        }
+        @keyframes scorePop { 0% { transform: scale(1.4); } 100% { transform: scale(1); } }
+
+        #specialBtn {
+            pointer-events: auto;
+            width: 68px;
+            height: 68px;
+            border-radius: 50%;
+            background: radial-gradient(circle, #fbbf24 0%, #d97706 100%);
+            border: 4px solid #fff;
+            box-shadow: 0 0 20px #fbbf24, inset 0 0 15px rgba(255,255,255,0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 900;
+            color: white;
+            font-size: 13px;
+            margin-top: 10px;
+            transition: transform 0.1s;
+            position: relative;
+            overflow: hidden;
+        }
+        #specialBtn::before {
+            content: ''; position: absolute; top:-50%; left:-50%; width:200%; height:200%;
+            background: linear-gradient(45deg, transparent, rgba(255,255,255,0.8), transparent);
+            animation: shine 1.5s infinite;
+        }
+        @keyframes shine { 0%{transform: translateX(-100%) rotate(45deg)} 100%{transform: translateX(100%) rotate(45deg)} }
+        #specialBtn:active { transform: scale(0.88); box-shadow: 0 0 40px #fbbf24; }
+        #specialBtn.disabled { filter: grayscale(100%); opacity: 0.4; pointer-events: none; animation: none; }
+        #specialBtn::after { content: 'SPECIAL'; position: absolute; bottom: -18px; font-size: 11px; font-weight:900; color: white; text-shadow: 0 0 5px #fbbf24, 2px 2px 0 #000; }
+
+        .shop-card {
+            background: rgba(15, 23, 42, 0.95);
+            border: 2px solid #334155;
+            border-radius: 16px;
+            padding: 12px;
+            text-align: center;
+            color: white;
+            transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            cursor: pointer;
+            width: 32%;
+            position: relative;
+            overflow: hidden;
+        }
+        .shop-card:hover { transform: translateY(-6px); border-color: #38bdf8; }
+        .shop-card.selected {
+            background: rgba(14, 165, 233, 0.3);
+            border-color: #38bdf8;
+            box-shadow: 0 0 25px rgba(14, 165, 233, 0.6), inset 0 0 15px rgba(14, 165, 233, 0.3);
+            transform: scale(1.06);
+            z-index: 10;
+        }
+        .shop-card.selected::after {
+            content: 'EQUIPPED';
+            position: absolute; top: 4px; right: 4px;
+            font-size: 9px; background: #38bdf8; color: black;
+            padding: 2px 6px; border-radius: 4px; font-weight: 900;
+        }
+
+        @keyframes flashAnim { 0%{opacity:1} 100%{opacity:0} }
+        .flash { animation: flashAnim 0.7s ease-out forwards; }
+        
+        #comboVignette {
+            position: absolute; inset: 0; pointer-events: none; z-index: 5;
+            background: radial-gradient(circle, transparent 60%, rgba(239, 68, 68, 0.0) 100%);
+            transition: background 0.2s;
+        }
+        .high-combo { background: radial-gradient(circle, transparent 50%, rgba(239, 68, 68, 0.35) 100%) !important; }
+
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                scroll-behavior: auto !important;
+                animation-duration: 0.001ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.001ms !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="bgCanvas"></canvas>
+        <canvas id="gameCanvas"></canvas>
+        <div id="comboVignette"></div>
+        <div id="flashOverlay"></div>
+
+        <div id="corruptionBanner" class="hidden absolute top-24 left-1/2 -translate-x-1/2 bg-cyan-950/90 border border-cyan-400 text-cyan-300 font-black px-4 py-1.5 rounded-full text-xs z-30 pointer-events-none tracking-widest shadow-[0_0_15px_rgba(6,182,212,0.6)]">
+            ⚠️ SYSTEM CORRUPTED (DRAINING) ⚠️
+        </div>
+
+        <div class="ui-layer">
+            <div class="flex justify-between w-full">
+                <div>
+                    <div class="text-xs font-black text-sky-300 hud-text tracking-widest">SCORE</div>
+                    <div id="scoreDisplay" class="text-3xl font-black text-white hud-text italic">0</div>
+                    <div id="stageDisplay" class="text-yellow-400 font-black mt-1 text-base hud-text">STAGE 1</div>
+                    <button type="button" id="specialBtn" class="hidden mt-3">BOMB</button>
+                </div>
+                
+                <div class="w-1/2 max-w-xs text-right">
+                    <span class="text-xs font-black text-red-400 hud-text tracking-widest">DIRT LEVEL</span>
+                    <div class="w-full bg-gray-900 rounded-full h-4 border border-gray-600 overflow-hidden relative mt-1 shadow-inner">
+                        <div id="dirtBar" class="bg-gradient-to-r from-purple-700 to-purple-500 h-full transition-all duration-100 relative" style="width: 0%">
+                            <div class="absolute top-0 left-0 right-0 h-1/2 bg-white/20"></div>
+                        </div>
+                        <div class="absolute top-0 bottom-0 border-l-2 border-red-500 border-dashed" style="left: 70%"></div>
+                    </div>
+                    <div id="dirtPercent" class="text-xl font-black text-white hud-text mt-1">0%</div>
+                </div>
+            </div>
+
+            <div id="centerMsg" class="absolute top-1/2 left-0 w-full text-center pointer-events-none hidden transition-opacity duration-500">
+                <h2 class="text-5xl font-black text-white hud-text italic" id="centerMsgText">STAGE CLEAR</h2>
+            </div>
+        </div>
+
+        <div id="startScreen" class="screen-modal interactive">
+            <h1 class="text-5xl md:text-6xl font-black text-transparent bg-clip-text bg-gradient-to-b from-sky-300 to-blue-600 mb-4 text-center italic" style="filter: drop-shadow(0 0 15px rgba(56, 189, 248, 0.5));">
+                Cleaning<br><span class="text-white text-4xl">BUBBLE</span>
+            </h1>
+            <div class="bg-gray-900/90 p-5 rounded-2xl border border-sky-800 mb-6 max-w-sm w-full text-center">
+                <p class="text-gray-200 text-sm leading-relaxed font-bold">
+                    汚れをこすって<span class="text-yellow-400">反射攻撃！</span><br>
+                    連続消しで<span class="text-red-400">コンボボーナス！</span><br>
+                    下10%は安全地帯です。<br>
+                    まずはステージ1で練習しよう。
+                </p>
+            </div>
+            <button id="startBtn" class="bg-gradient-to-b from-sky-400 to-blue-700 text-white font-black py-4 px-16 rounded-full text-2xl shadow-[0_0_30px_rgba(56,189,248,0.6)] border-b-6 border-blue-900 active:translate-y-1 transition-all">
+                START
+            </button>
+        </div>
+
+        <div id="shopScreen" class="hidden screen-modal interactive">
+            <h2 class="text-3xl font-black text-yellow-400 mb-1">ARMORY</h2>
+            <p class="text-sky-200 text-xs mb-6 font-bold tracking-widest">次の任務のクリーナーを選択しろ</p>
+            
+            <div class="flex gap-3 mb-8 w-full max-w-md justify-center">
+                <button type="button" class="shop-card selected" id="card0" aria-pressed="true">
+                    <div class="text-3xl mb-2 text-yellow-400">●</div>
+                    <div class="font-black text-sm text-yellow-400 mb-1">POLISHER</div>
+                    <div class="text-[10px] text-left text-gray-300 font-mono bg-black/60 p-1.5 rounded">
+                        POW: ★★★★☆<br>BOMB: 2回
+                    </div>
+                </button>
+                <button type="button" class="shop-card" id="card1" aria-pressed="false">
+                    <div class="text-3xl mb-2 text-red-500">■</div>
+                    <div class="font-black text-sm text-red-500 mb-1">SPONGE</div>
+                    <div class="text-[10px] text-left text-gray-300 font-mono bg-black/60 p-1.5 rounded">
+                        POW: ★★★★★<br>BOMB: 1回
+                    </div>
+                </button>
+                <button type="button" class="shop-card" id="card2" aria-pressed="false">
+                    <div class="text-3xl mb-2 text-green-500">▬</div>
+                    <div class="font-black text-sm text-green-500 mb-1">WIPER</div>
+                    <div class="text-[10px] text-left text-gray-300 font-mono bg-black/60 p-1.5 rounded">
+                        POW: ★★★☆☆<br>BOMB: 3回
+                    </div>
+                </button>
+            </div>
+            
+            <button id="shopNextBtn" class="bg-gradient-to-b from-green-400 to-green-700 text-white font-black py-3 px-12 rounded-full shadow-[0_0_25px_rgba(34,197,94,0.5)] text-xl border-b-4 border-green-900 active:translate-y-1 transition-all">
+                NEXT MISSION
+            </button>
+        </div>
+
+        <div id="gameOverScreen" class="hidden screen-modal interactive">
+            <h2 class="text-6xl text-red-600 font-black mb-3 italic transform -rotate-3" style="text-shadow: 0 0 30px red, 3px 3px 0 #fff;">DIRTY!!</h2>
+            <div class="text-white text-2xl mb-3 font-black">SCORE: <span id="finalScore" class="text-yellow-400 text-3xl">0</span></div>
+            <div id="deathReason" class="text-red-300 text-sm mb-8 font-bold bg-red-950/60 px-5 py-2.5 rounded-lg border border-red-500/40 text-center max-w-sm"></div>
+            <button id="retryBtn" class="bg-white hover:bg-gray-200 text-black font-black py-3.5 px-14 rounded-full text-xl transition-transform hover:scale-105 shadow-lg">
+                RETRY
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const cyberBossImg = new Image();
+        cyberBossImg.decoding = 'async';
+        cyberBossImg.src = 'endless-boss.png';
+
+        function getCyberBossDrawWidth() {
+            return Math.min(320, Math.max(120, canvas.width * 0.22));
+        }
+
+        const Sprites = {
+            cache: {},
+            create: function(id, width, height, renderFunc) {
+                const c = document.createElement('canvas');
+                c.width = width; c.height = height;
+                const x = c.getContext('2d');
+                renderFunc(x, width, height);
+                this.cache[id] = c;
+            },
+            get: function(id) { return this.cache[id]; },
+            init: function() {
+                this.create('pal_round', 80, 80, (x, w, h) => {
+                    const cx = w/2, cy = h/2, r = 35;
+                    const grad = x.createRadialGradient(cx, cy, 0, cx, cy, r);
+                    grad.addColorStop(0, '#fef08a'); grad.addColorStop(0.8, '#eab308'); grad.addColorStop(1, '#a16207');
+                    x.fillStyle = grad; x.beginPath(); x.arc(cx, cy, r, 0, Math.PI*2); x.fill();
+                    x.strokeStyle = '#ca8a04'; x.lineWidth = 2;
+                    for(let i=0; i<3; i++) { x.beginPath(); x.arc(cx, cy, r - i*8 - 5, 0, Math.PI*2); x.stroke(); }
+                    x.fillStyle = '#475569'; x.beginPath(); x.arc(cx, cy, 10, 0, Math.PI*2); x.fill();
+                });
+                this.create('pal_square', 70, 70, (x, w, h) => {
+                    const s = 50, off = 10;
+                    x.fillStyle = '#b91c1c'; x.fillRect(off, off+10, s, s);
+                    const grad = x.createLinearGradient(off, off, off, off+s);
+                    grad.addColorStop(0, '#fca5a5'); grad.addColorStop(1, '#ef4444');
+                    x.fillStyle = grad; x.fillRect(off, off, s, s);
+                    x.fillStyle = '#fde047'; x.fillRect(off+2, off+s-15, s-4, 13);
+                });
+                this.create('pal_wide', 220, 60, (x, w, h) => {
+                    const bw = 200, bh = 20, cx = w/2, cy = 40;
+                    const grad = x.createLinearGradient(0, cy-bh/2, 0, cy+bh/2);
+                    grad.addColorStop(0, '#86efac'); grad.addColorStop(0.5, '#22c55e'); grad.addColorStop(1, '#14532d');
+                    x.fillStyle = grad; x.fillRect(cx - bw/2, cy - bh/2, bw, bh);
+                    x.fillStyle = '#1e293b';
+                    x.beginPath(); x.moveTo(cx-15, cy-5); x.lineTo(cx+15, cy-5); x.lineTo(cx, cy-30); x.fill();
+                });
+                this.create('glow_blue', 40, 40, (x,w,h) => {
+                    const g = x.createRadialGradient(20,20,0, 20,20,20);
+                    g.addColorStop(0, '#ffffff'); g.addColorStop(0.2, '#38bdf8'); g.addColorStop(1, 'rgba(56,189,248,0)');
+                    x.fillStyle=g; x.fillRect(0,0,40,40);
+                });
+                this.create('glow_yellow', 60, 60, (x,w,h) => {
+                    const g = x.createRadialGradient(30,30,0, 30,30,30);
+                    g.addColorStop(0, '#ffffff'); g.addColorStop(0.2, '#facc15'); g.addColorStop(1, 'rgba(250,204,21,0)');
+                    x.fillStyle=g; x.fillRect(0,0,60,60);
+                });
+                this.create('glow_red', 80, 80, (x,w,h) => {
+                    const g = x.createRadialGradient(40,40,0, 40,40,40);
+                    g.addColorStop(0, '#ffffff'); g.addColorStop(0.3, '#ef4444'); g.addColorStop(1, 'rgba(239,68,68,0)');
+                    x.fillStyle=g; x.fillRect(0,0,80,80);
+                });
+            }
+        };
+
+        const Sound = (() => {
+            let ctx = null, master = null, bgmAudio = null;
+            const bgmFiles = {
+                stage12: "ステージ１と２mp3.mp3",
+                boss: "ラスボス.mp3",
+                endless: "エンドレス.mp3"
+            };
+
+            const init = () => {
+                if(!ctx) { 
+                    try {
+                        ctx = new (window.AudioContext||window.webkitAudioContext)(); 
+                        master = ctx.createGain(); master.gain.value=0.2; master.connect(ctx.destination);
+                    } catch(e) { console.error(e); }
+                }
+                if(ctx && ctx.state==='suspended') ctx.resume();
+            };
+
+            const playSE = (type, freq, dur, vol=1, slide=0) => {
+                if(!ctx) return;
+                const o=ctx.createOscillator(), g=ctx.createGain();
+                o.type=type; o.frequency.setValueAtTime(freq, ctx.currentTime);
+                if(slide) o.frequency.exponentialRampToValueAtTime(freq+slide, ctx.currentTime+dur);
+                g.gain.setValueAtTime(vol, ctx.currentTime); g.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime+dur);
+                o.connect(g); g.connect(master); o.start(); o.stop(ctx.currentTime+dur);
+            };
+
+            const playBGM = (key) => {
+                if(bgmAudio) { bgmAudio.pause(); bgmAudio.currentTime = 0; }
+                if(bgmFiles[key]) {
+                    bgmAudio = new Audio(bgmFiles[key]);
+                    bgmAudio.loop = true; bgmAudio.volume = 0.3;
+                    bgmAudio.preload = 'none';
+                    bgmAudio.play().catch(e => console.log("BGM Error:", e));
+                }
+            };
+            const stopBGM = () => { if(bgmAudio) { bgmAudio.pause(); bgmAudio.currentTime = 0; } };
+            const pauseBGM = () => {
+                if (bgmAudio) bgmAudio.pause();
+                if (ctx && ctx.state === 'running') ctx.suspend();
+            };
+            const resumeBGM = () => {
+                init();
+                if (bgmAudio && bgmAudio.paused) bgmAudio.play().catch(() => {});
+            };
+
+            return {
+                init, playBGM, stopBGM, pauseBGM, resumeBGM,
+                clean: () => playSE('square', 200, 0.05, 0.3, -50),
+                shoot: () => playSE('square', 1200, 0.1, 0.1, -600),
+                shootBig: () => playSE('sawtooth', 400, 0.2, 0.2, -200),
+                hit: () => playSE('triangle', 150, 0.1, 0.4),
+                bossHit: () => playSE('sawtooth', 80, 0.1, 0.4),
+                bomb: () => { playSE('sawtooth', 100, 0.5, 0.6, -50); playSE('square', 50, 0.5, 0.6); },
+                win: () => { playSE('sine', 400, 0.2); setTimeout(()=>playSE('sine',600,0.4),200); }
+            };
+        })();
+
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const bgCanvas = document.getElementById('bgCanvas');
+        const bgCtx = bgCanvas.getContext('2d');
+
+        const PALETTES = [
+            { type: 'round', size: 35, power: 2.0, sprite: 'pal_round', maxBomb: 2 },   
+            { type: 'square', size: 25, power: 3.0, sprite: 'pal_square', maxBomb: 1 },  
+            { type: 'wide', w: 100, h: 20, power: 1.2, sprite: 'pal_wide', maxBomb: 3 } 
+        ];
+
+        let state = {
+            screen: 'START', stage: 1, score: 0, frames: 0,
+            paletteId: 0, bombRemaining: 0, isEndless: false, loopId: null,
+            comboCount: 0, comboTimer: 0, hitStop: 0, shakeTime: 0,
+            nextEndlessBossScore: 300000,
+            corruptionFrames: 0,
+            corruptionExtraDirtPct: 0
+        };
+
+        let mouse = { x: -1000, y: -1000, isDown: false, lastX: -1000, lastY: -1000 };
+        let entities = { enemies: [], dirts: [], bullets: [], particles: [] };
+        let boss = null;
+
+        function resize() {
+            const container = document.getElementById('gameContainer');
+            const w = container.clientWidth || window.innerWidth || 360;
+            const h = container.clientHeight || window.innerHeight || 640;
+            canvas.width = w; canvas.height = h;
+            bgCanvas.width = w; bgCanvas.height = h;
+            drawBackground();
+        }
+
+        function drawBackground() {
+            if (state.stage >= 4) {
+                const grad = bgCtx.createLinearGradient(0,0,0,bgCanvas.height);
+                grad.addColorStop(0, '#030712'); grad.addColorStop(1, '#082f49');
+                bgCtx.fillStyle = grad; bgCtx.fillRect(0,0,bgCanvas.width,bgCanvas.height);
+                
+                bgCtx.strokeStyle = 'rgba(6, 182, 212, 0.18)';
+                bgCtx.lineWidth = 1;
+                bgCtx.beginPath();
+                for(let x=0; x<bgCanvas.width; x+=35) { bgCtx.moveTo(x,0); bgCtx.lineTo(x,bgCanvas.height); }
+                for(let y=0; y<bgCanvas.height; y+=35) { bgCtx.moveTo(0,y); bgCtx.lineTo(bgCanvas.width,y); }
+                bgCtx.stroke();
+
+                bgCtx.fillStyle = '#67e8f9';
+                for(let i=0; i<60; i++) {
+                    bgCtx.globalAlpha = Math.random() * 0.7 + 0.2;
+                    bgCtx.beginPath(); bgCtx.arc(Math.random()*bgCanvas.width, Math.random()*bgCanvas.height, Math.random()*1.5, 0, Math.PI*2); bgCtx.fill();
+                }
+                bgCtx.globalAlpha = 1.0;
+            } else {
+                bgCtx.fillStyle = '#f8fafc'; bgCtx.fillRect(0,0,bgCanvas.width,bgCanvas.height);
+                bgCtx.strokeStyle = '#e2e8f0'; bgCtx.lineWidth = 2; bgCtx.beginPath();
+                const tileSize = 55;
+                for(let i=0; i<bgCanvas.width; i+=tileSize) { bgCtx.moveTo(i,0); bgCtx.lineTo(i,bgCanvas.height); }
+                for(let i=0; i<bgCanvas.height; i+=tileSize) { bgCtx.moveTo(0,i); bgCtx.lineTo(bgCanvas.width,i); }
+                bgCtx.stroke();
+            }
+            
+            bgCtx.fillStyle = state.stage >= 4 ? '#020617' : '#cbd5e1';
+            bgCtx.fillRect(0, bgCanvas.height * 0.90, bgCanvas.width, bgCanvas.height * 0.10);
+            bgCtx.fillStyle = state.stage >= 4 ? '#38bdf8' : '#64748b';
+            bgCtx.font = '900 14px "M PLUS Rounded 1c"'; bgCtx.textAlign = 'center';
+            bgCtx.fillText("SAFE ZONE", bgCanvas.width/2, bgCanvas.height * 0.96);
+        }
+
+        const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+        function triggerShake(frames) {
+            if (!reducedMotion.matches) state.shakeTime = Math.max(state.shakeTime, frames);
+        }
+        function triggerHitStop(frames) { state.hitStop = frames; }
+
+        function updateInput(clientX, clientY) {
+            const rect = canvas.getBoundingClientRect();
+            mouse.lastX = mouse.x === -1000 ? clientX - rect.left : mouse.x;
+            mouse.lastY = mouse.y === -1000 ? clientY - rect.top  : mouse.y;
+            mouse.x = clientX - rect.left;
+            mouse.y = clientY - rect.top;
+        }
+
+        function addScore(amount) {
+            state.score += amount;
+            const el = document.getElementById('scoreDisplay');
+            if(el) {
+                el.innerText = state.score;
+                el.classList.remove('score-juice');
+                void el.offsetWidth;
+                el.classList.add('score-juice');
+            }
+        }
+
+        function updateBombUI() {
+            const btn = document.getElementById('specialBtn');
+            if(!btn) return;
+            if (state.stage === 1) {
+                btn.classList.add('hidden');
+            } else {
+                btn.classList.remove('hidden');
+                btn.innerText = `BOMB x${state.bombRemaining}`;
+                if (state.bombRemaining <= 0) btn.classList.add('disabled');
+                else btn.classList.remove('disabled');
+            }
+        }
+
+        function spawnImpact(x, y, color, tier=1) {
+            entities.particles.push({ type: 'flash', x, y, life: 1.0, color: '#fff', size: tier*18 });
+            entities.particles.push({ type: 'ring', x, y, life: 1.0, color: color, radius: 0, maxRadius: tier*35, width: tier*3 });
+            const count = tier * 4;
+            for(let i=0; i<count; i++) {
+                const a = Math.random() * Math.PI*2;
+                const spd = Math.random() * 4 * tier + 2;
+                entities.particles.push({
+                    type: 'spark', x, y, vx: Math.cos(a)*spd, vy: Math.sin(a)*spd, 
+                    life: 1.0, color: color, size: Math.random()*2+2
+                });
+            }
+        }
+
+        class Enemy {
+            constructor(isBoss=false, isCyberBoss=false) {
+                this.isBoss = isBoss;
+                this.isCyberBoss = isCyberBoss;
+                this.dead = false;
+                
+                if (isCyberBoss) {
+                    this.hp = 25000 + Math.floor(state.score * 0.05);
+                } else {
+                    this.hp = isBoss ? (state.stage === 1 ? 3000 : (state.stage === 2 ? 8000 : 20000)) : 15;
+                }
+                if(state.stage >= 4 && !isBoss) this.hp = 20 + Math.floor(state.frames/600);
+                this.maxHp = this.hp;
+                
+                this.x = isBoss ? canvas.width/2 : Math.random()*(canvas.width-40)+20;
+                this.y = isBoss ? -150 : -30;
+                this.radius = isCyberBoss ? Math.max(25, canvas.width * 0.05) : (isBoss ? 80 : 25);
+                
+                this.type = 0; 
+                if(state.stage >= 4 && !isBoss) {
+                    this.type = Math.floor(Math.random() * 5); 
+                    if(this.type === 1) { this.radius = 20; this.color = '#10b981'; } 
+                    if(this.type === 2) { this.radius = 45; this.hp *= 4; this.maxHp=this.hp; this.color = '#3b82f6'; } 
+                    if(this.type === 3) { this.color = '#eab308'; } 
+                    if(this.type === 4) { this.color = '#a855f7'; } 
+                }
+
+                this.vx = isBoss ? 0 : (Math.random()-0.5) * (this.type===1 ? 7 : 3);
+                this.vy = isBoss ? 0 : Math.random()*2 + (this.type===1 ? 3 : 1);
+                this.timer = 0;
+            }
+            update() {
+                this.x += this.vx; this.y += this.vy;
+                
+                if(this.isBoss) {
+                    const targetY = this.isCyberBoss ? Math.min(130, canvas.height * 0.20) : 120;
+                    
+                    if(this.y < targetY) {
+                        this.y += 1.5;
+                        if(state.frames%10===0) triggerShake(2);
+                    } else {
+                        if(this.isCyberBoss) {
+                            const drawWidth = getCyberBossDrawWidth();
+                            const horizontalTravel = Math.max(0, canvas.width/2 - drawWidth/2 - 8);
+                            this.x = canvas.width/2 + Math.sin(state.frames * 0.06) * Math.min(canvas.width * 0.35, horizontalTravel);
+                            this.vy = Math.sin(state.frames * 0.1) * 0.5;
+                        } else if(state.stage >= 1) {
+                            this.x = canvas.width/2 + Math.sin(state.frames * 0.02) * (canvas.width/3);
+                            this.vy = Math.sin(state.frames * 0.05) * 0.5;
+                        }
+                    }
+
+                    if(this.y >= targetY) {
+                        this.timer++;
+                        
+                        if(this.isCyberBoss) {
+                            if(this.timer % 320 === 0) this.summonCyberSpecialCore();
+                            if(this.timer % 45 === 0) this.shootCyber();
+                            if(this.timer % 120 === 0) this.cyberBarrage();
+                        }
+                        else if(state.stage === 1) { 
+                            if(this.timer % 30 === 0) this.shoot(); 
+                        } 
+                        else if (state.stage === 2) {
+                            if(this.timer % 120 === 0) this.lineAttack(Math.random()<0.5); 
+                            if(this.timer % 50 === 0) this.shoot();
+                        } 
+                        else { 
+                            const pattern = Math.floor((state.frames / 200) % 5);
+                            if(pattern === 0 && this.timer % 20 === 0) this.shoot();
+                            if(pattern === 1 && this.timer % 50 === 0) this.lineAttack(Math.random()<0.5);
+                            if(pattern === 2 && this.timer % 60 === 0) {
+                                for(let i=0; i<12; i++) {
+                                    const angle = (i/12)*Math.PI*2;
+                                    entities.dirts.push(new Dirt(this.x, this.y, Math.cos(angle)*7, Math.sin(angle)*7));
+                                }
+                            }
+                            if(pattern === 3 && this.timer % 8 === 0) this.shoot();
+                            if(pattern === 4 && this.timer % 90 === 0) {
+                                const d = new Dirt(this.x, this.y, (Math.random()-0.5)*5, 5);
+                                d.radius = 40; d.hp = 800; d.maxHp = 800; 
+                                d.color = '#171717'; d.type = 'hard';
+                                entities.dirts.push(d);
+                            }
+                        }
+                    }
+                } else {
+                    if(this.x<this.radius || this.x>canvas.width-this.radius) this.vx*=-1;
+                    if(this.y > canvas.height*0.5) this.vy -= 0.1;
+                    if(this.y < 80 && this.vy < 0) this.vy += 0.2; 
+
+                    this.timer++;
+                    let shootRate = 120;
+                    if(this.type === 3) shootRate = 60;
+                    if(this.type === 4) shootRate = 180;
+
+                    if(this.timer > shootRate) { 
+                        if(this.type === 4) { for(let i=0; i<4; i++) this.shoot(); } 
+                        else { this.shoot(); }
+                        this.timer=0; 
+                    }
+                    if(this.y > canvas.height+50) this.dead = true;
+                }
+            }
+
+            summonCyberSpecialCore() {
+                if(entities.dirts.some(d => d.type === 'cyber_mega')) return;
+                showMessage("⚠️ BOSS ULTIMATE ATTACK!! ⚠️");
+                triggerShake(15);
+                const d = new Dirt(canvas.width / 2, canvas.height * 0.48, 0, 0);
+                d.type = 'cyber_mega';
+                d.hp = 3000;
+                d.maxHp = 3000;
+                d.radius = 45;
+                d.color = '#0891b2';
+                d.state = 'stuck';
+                entities.dirts.push(d);
+            }
+            shootCyber() {
+                const angle = Math.atan2(canvas.height * 0.65 - this.y, canvas.width/2 - this.x) + (Math.random()-0.5)*0.6;
+                const speed = 6.5;
+                const d = new Dirt(this.x, this.y + this.radius*0.6, Math.cos(angle)*speed, Math.sin(angle)*speed);
+                d.type = 'cyber';
+                d.hp = 1000;
+                d.maxHp = 1000;
+                d.color = '#0284c7';
+                d.radius = 28;
+                entities.dirts.push(d);
+            }
+            cyberBarrage() {
+                for(let i=0; i<4; i++) {
+                    const angle = (Math.PI*0.25) + (i/3)*(Math.PI*0.5);
+                    const d = new Dirt(this.x, this.y + this.radius*0.6, Math.cos(angle)*7, Math.sin(angle)*7);
+                    d.type = 'cyber';
+                    d.hp = 1000;
+                    d.maxHp = 1000;
+                    d.color = '#0284c7';
+                    d.radius = 26;
+                    entities.dirts.push(d);
+                }
+            }
+            shoot() {
+                const angle = Math.atan2(canvas.height/2 - this.y, canvas.width/2 - this.x) + (Math.random()-0.5)*0.5;
+                let speed = 5;
+                if(this.type === 3) speed = 9;
+                
+                const dirt = new Dirt(this.x, this.y+this.radius*0.8, Math.cos(angle)*speed, Math.sin(angle)*speed);
+                if(Math.random() < 0.2) {
+                    dirt.isEnemySpecial = true;
+                    dirt.hp = 200; dirt.maxHp = 200;
+                    dirt.color = '#4c0519';
+                }
+                entities.dirts.push(dirt);
+            }
+            lineAttack(isVertical) {
+                const count = 6;
+                for(let i=0; i<count; i++) {
+                    const tx = isVertical ? canvas.width/2 : (i/5)*canvas.width;
+                    const ty = isVertical ? (i/5)*canvas.height*0.6 + 100 : canvas.height/2;
+                    const dx = tx - this.x; const dy = ty - this.y;
+                    const d = Math.hypot(dx,dy);
+                    entities.dirts.push(new Dirt(this.x, this.y+this.radius*0.8, (dx/d)*7, (dy/d)*7));
+                }
+            }
+            draw() {
+                ctx.save(); ctx.translate(this.x, this.y);
+
+                if (this.isCyberBoss) {
+                    const drawWidth = getCyberBossDrawWidth();
+                    const imageReady = cyberBossImg.complete && cyberBossImg.naturalWidth > 0 && cyberBossImg.naturalHeight > 0;
+                    const drawHeight = drawWidth * (imageReady ? cyberBossImg.naturalHeight / cyberBossImg.naturalWidth : 0.65);
+
+                    ctx.shadowColor = '#06b6d4';
+                    ctx.shadowBlur = 18;
+                    if (!reducedMotion.matches && state.frames % 5 === 0) {
+                        ctx.fillStyle = 'rgba(236, 72, 153, 0.4)';
+                        ctx.fillRect(-drawWidth/2 - 3, -drawHeight/2 + 2, drawWidth + 6, drawHeight - 4);
+                    }
+
+                    if (imageReady) {
+                        ctx.drawImage(cyberBossImg, -drawWidth/2, -drawHeight/2, drawWidth, drawHeight);
+                    } else {
+                        ctx.fillStyle = '#0f172a';
+                        ctx.strokeStyle = '#22d3ee';
+                        ctx.lineWidth = 3;
+                        ctx.beginPath();
+                        if (ctx.roundRect) {
+                            ctx.roundRect(-drawWidth/2, -drawHeight/2, drawWidth, drawHeight, 8);
+                        } else {
+                            ctx.rect(-drawWidth/2, -drawHeight/2, drawWidth, drawHeight);
+                        }
+                        ctx.fill(); ctx.stroke();
+                        ctx.fillStyle = '#ef4444';
+                        ctx.beginPath(); ctx.arc(-12, -4, 5, 0, Math.PI*2); ctx.arc(12, -4, 5, 0, Math.PI*2); ctx.fill();
+                    }
+                    ctx.shadowBlur = 0;
+
+                    const p = Math.max(0, this.hp/this.maxHp);
+                    const barY = -drawHeight/2 - 12;
+                    const barW = drawWidth * 1.2;
+                    ctx.fillStyle='rgba(0,0,0,0.8)'; ctx.fillRect(-barW/2, barY, barW, 6);
+                    ctx.strokeStyle='#38bdf8'; ctx.lineWidth=1; ctx.strokeRect(-barW/2, barY, barW, 6);
+                    ctx.fillStyle='#06b6d4'; ctx.fillRect(-barW/2, barY, barW*p, 6);
+
+                    ctx.font = '900 10px "M PLUS Rounded 1c"';
+                    ctx.fillStyle = '#67e8f9';
+                    ctx.textAlign = 'center';
+                    ctx.fillText("CYBER OVERLORD", 0, barY - 4);
+
+                    ctx.restore();
+                    return;
+                }
+
+                const color = this.isBoss ? '#e11d48' : (this.color || '#c026d3');
+                ctx.shadowColor = color; ctx.shadowBlur = 15;
+                ctx.fillStyle = color;
+                ctx.beginPath();
+                ctx.arc(-this.radius*0.5, -this.radius*0.7, this.radius*0.4, 0, Math.PI*2);
+                ctx.arc(this.radius*0.5, -this.radius*0.7, this.radius*0.4, 0, Math.PI*2);
+                ctx.fill();
+                ctx.beginPath(); ctx.arc(0,0,this.radius,0,Math.PI*2); ctx.fill();
+                ctx.shadowBlur = 0;
+
+                ctx.fillStyle = '#fff';
+                if(this.isBoss) {
+                    ctx.beginPath(); 
+                    ctx.moveTo(-20, -15); ctx.lineTo(-5, 0); ctx.lineTo(-20, 0); 
+                    ctx.moveTo(20, -15); ctx.lineTo(5, 0); ctx.lineTo(20, 0);
+                    ctx.fill();
+                } else {
+                    ctx.beginPath(); 
+                    ctx.arc(-8, -5, 5, 0, Math.PI*2); ctx.arc(8, -5, 5, 0, Math.PI*2); 
+                    ctx.fill();
+                }
+
+                if(this.isBoss) {
+                    ctx.fillStyle = '#fbbf24';
+                    ctx.beginPath();
+                    ctx.moveTo(-25, -this.radius+5); ctx.lineTo(-15, -this.radius-20); ctx.lineTo(0, -this.radius-5);
+                    ctx.lineTo(15, -this.radius-20); ctx.lineTo(25, -this.radius+5);
+                    ctx.fill();
+                    ctx.strokeStyle = '#b45309'; ctx.lineWidth=2; ctx.stroke();
+                }
+
+                const p = Math.max(0, this.hp/this.maxHp);
+                const barY = this.isBoss ? -this.radius-35 : -this.radius-15;
+                const barW = this.isBoss ? 100 : 40;
+                ctx.fillStyle='rgba(0,0,0,0.5)'; ctx.fillRect(-barW/2, barY, barW, 6);
+                ctx.fillStyle='#4ade80'; ctx.fillRect(-barW/2, barY, barW*p, 6);
+                ctx.restore();
+            }
+        }
+
+        class Dirt {
+            constructor(x, y, vx, vy) {
+                this.x = x; this.y = y; this.vx = vx; this.vy = vy;
+                this.radius = 20;
+                this.state = 'moving';
+                this.type = 'normal';
+                this.hp = 100;
+                this.maxHp = 100;
+                this.color = Math.random()<0.5 ? '#6b21a8' : '#7e22ce';
+                this.isEnemySpecial = false;
+
+                if(state.stage >= 4) {
+                    const r = Math.random();
+                    if(r < 0.1) {
+                        this.type = 'hard';
+                        this.hp = 800; this.maxHp = 800; this.color = '#171717';
+                    } else if (r < 0.2) {
+                        this.type = 'sticky'; 
+                        this.hp = 300; this.maxHp = 300; this.color = '#166534';
+                    } else if (r < 0.3) {
+                        this.type = 'heavy'; 
+                        this.vy = 8; this.color = '#1e3a8a';
+                    } else if (r < 0.4) {
+                        this.type = 'toxic'; this.color = '#84cc16';
+                    } else if (r < 0.5) {
+                        this.type = 'regen'; this.color = '#ec4899';
+                    }
+                }
+                this.offsets = Array(8).fill(0).map(()=>Math.random()*6-3);
+            }
+            update() {
+                if(this.state === 'moving') {
+                    this.x += this.vx; 
+                    this.y += this.vy; 
+                    this.vy += (this.type === 'heavy' ? 0.2 : 0.05);
+                    
+                    const safeY = canvas.height * 0.90; 
+                    if(this.y > safeY || (this.y > 100 && Math.random()<0.005)) {
+                        this.y = Math.min(this.y, safeY);
+                        this.state = 'stuck'; this.vx=0; this.vy=0;
+                        spawnImpact(this.x, this.y, this.color, 0.5);
+                    }
+                    if(this.x<0 || this.x>canvas.width) this.vx*=-1;
+                } else {
+                    let hit = false;
+                    if(mouse.isDown) {
+                        const pal = PALETTES[state.paletteId];
+                        const dist = Math.hypot(mouse.x - mouse.lastX, mouse.y - mouse.lastY);
+                        const steps = Math.max(1, Math.ceil(dist / 5)); 
+                        
+                        for(let i=0; i<=steps; i++) {
+                            const t = i/steps;
+                            const mx = mouse.lastX + (mouse.x - mouse.lastX) * t;
+                            const my = mouse.lastY + (mouse.y - mouse.lastY) * t;
+                            
+                            if(pal.type === 'wide') {
+                                if(Math.abs(mx-this.x)<pal.w+10 && Math.abs(my-this.y)<pal.h+10) hit=true;
+                            } else {
+                                if(Math.hypot(mx-this.x, my-this.y) < pal.size + this.radius + 10) hit=true;
+                            }
+                            if(hit) break;
+                        }
+
+                        if(hit) {
+                            let dmg = 7 * pal.power;
+                            if (this.type === 'sticky') dmg *= 0.2;
+
+                            this.hp -= dmg;
+                            if(state.frames%4===0) Sound.clean();
+                            if(this.hp <= 0) this.clean();
+                        }
+                    }
+
+                    if(this.type === 'regen' && !hit && state.frames % 2 === 0) {
+                        this.hp = Math.min(this.maxHp, this.hp + 5);
+                    }
+                }
+            }
+
+            clean() {
+                this.dead = true;
+                
+                if (this.type === 'cyber_mega') {
+                    if (boss && boss.isCyberBoss) {
+                        boss.hp -= 5000;
+                        triggerShake(20);
+                        triggerHitStop(8);
+                        Sound.bossHit();
+                        entities.particles.push({type:'text', x:boss.x, y:boss.y - 30, life:2.0, text:"MEGA COUNTER! -5000", color:"#f43f5e", size:28});
+                        if (boss.hp <= 0) checkBossDeath(boss);
+                    }
+                }
+
+                if (this.type === 'cyber') {
+                    state.corruptionFrames = Math.max(state.corruptionFrames, 300);
+                    const banner = document.getElementById('corruptionBanner');
+                    if (banner) banner.classList.remove('hidden');
+                    entities.particles.push({type:'text', x:this.x, y:this.y-20, life:1.5, text:"5s CORRUPTION!!", color:"#22d3ee", size:22});
+                }
+
+                if (this.type === 'toxic') {
+                    for(let i=0; i<3; i++) {
+                        let nd = new Dirt(this.x, this.y, (Math.random()-0.5)*12, (Math.random()-0.5)*6 - 6);
+                        nd.radius = 12; nd.hp = 50; nd.maxHp = 50; nd.type = 'normal';
+                        entities.dirts.push(nd);
+                    }
+                }
+
+                state.comboCount++;
+                state.comboTimer = 45; 
+                
+                let tier = 1; let scoreMult = 1.0;
+                if(state.comboCount >= 10) { tier = 3; scoreMult = 3.0; } 
+                else if(state.comboCount >= 4) { tier = 2; scoreMult = 1.5; }
+
+                let baseScore = (this.type === 'cyber_mega') ? 1500 : ((this.type === 'cyber') ? 500 : ((this.type !== 'normal' || this.isEnemySpecial) ? 150 : 50));
+                addScore(Math.floor(baseScore * scoreMult));
+                
+                if(tier===3) Sound.shootBig(); else Sound.shoot();
+                
+                let target = boss || entities.enemies[0];
+                let angle = -Math.PI/2;
+                if(target) angle = Math.atan2(target.y - this.y, target.x - this.x);
+                
+                const count = (this.type === 'cyber_mega') ? 6 : ((this.type === 'cyber' || this.type === 'hard' || this.type === 'sticky' || this.isEnemySpecial) ? 3 : 1);
+                for(let i=0; i<count; i++) {
+                    const a = angle + (Math.random()-0.5)*0.5;
+                    entities.bullets.push({x:this.x, y:this.y, vx:Math.cos(a)*18, vy:Math.sin(a)*18, dead:false, tier: tier});
+                }
+                
+                spawnImpact(this.x, this.y, (this.type === 'cyber' || this.type === 'cyber_mega') ? '#06b6d4' : '#38bdf8', tier);
+                if (tier === 3) {
+                    entities.particles.push({type:'text', x:this.x, y:this.y, life:1.5, text: state.comboCount+" COMBO!!", color:"#ef4444", size:35});
+                    triggerShake(5); triggerHitStop(2);
+                } else if (tier === 2) {
+                    entities.particles.push({type:'text', x:this.x, y:this.y, life:1.2, text: state.comboCount+" Combo!", color:"#facc15", size:25});
+                } else {
+                    entities.particles.push({type:'text', x:this.x, y:this.y, life:0.8, text:"CLEAN!", color:"#38bdf8", size:16});
+                }
+            }
+            draw() {
+                ctx.save(); ctx.translate(this.x, this.y);
+                const s = Math.max(0.2, this.hp/this.maxHp); 
+                ctx.scale(s,s);
+                
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                for(let i=0; i<8; i++) {
+                    const a = (i/8)*Math.PI*2;
+                    const r = this.radius + this.offsets[i];
+                    i===0 ? ctx.moveTo(Math.cos(a)*r, Math.sin(a)*r) : ctx.lineTo(Math.cos(a)*r, Math.sin(a)*r);
+                }
+                ctx.fill();
+                
+                ctx.lineWidth = 3;
+                if(this.type === 'cyber_mega') {
+                    ctx.strokeStyle = '#f43f5e';
+                    ctx.shadowColor = '#06b6d4';
+                    ctx.shadowBlur = 20;
+                    ctx.lineWidth = 5;
+                }
+                else if(this.type === 'cyber') {
+                    ctx.strokeStyle = '#06b6d4';
+                    ctx.shadowColor = '#06b6d4';
+                    ctx.shadowBlur = 12;
+                }
+                else if(this.type === 'hard') ctx.strokeStyle = '#dc2626';
+                else if (this.type === 'sticky') ctx.strokeStyle = '#22c55e';
+                else if (this.type === 'heavy') ctx.strokeStyle = '#3b82f6';
+                else if (this.type === 'toxic') ctx.strokeStyle = '#bef264';
+                else if (this.type === 'regen') ctx.strokeStyle = '#f472b6';
+                else if (this.isEnemySpecial) ctx.strokeStyle = '#fb7185';
+                else { ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth=1; }
+                ctx.stroke();
+
+                ctx.fillStyle = 'rgba(255,255,255,0.2)';
+                ctx.beginPath(); ctx.arc(-5,-5, this.radius*0.4, 0, Math.PI*2); ctx.fill();
+
+                if(this.state==='stuck') {
+                    ctx.scale(1 + Math.sin(state.frames*0.2)*0.1, 1 + Math.sin(state.frames*0.2)*0.1);
+                    ctx.fillStyle='white'; ctx.font='900 14px Arial'; 
+                    let tag = "!";
+                    if(this.type === 'cyber_mega') tag = "30x";
+                    else if(this.type === 'cyber') tag = "10x";
+                    else if(this.isEnemySpecial) tag = "2x";
+                    ctx.fillText(tag, -8, 5);
+                }
+                ctx.restore();
+            }
+        }
+
+        function spawnManager() {
+            if(state.stage >= 4 && !boss && state.score >= state.nextEndlessBossScore) {
+                boss = new Enemy(true, true);
+                entities.enemies = [];
+                showMessage("300K CYBER BOSS INCOMING!!");
+                state.nextEndlessBossScore += 300000;
+                return;
+            }
+
+            if(boss) return;
+
+            let limit = 5;
+            if(state.stage >= 4) limit = 10 + Math.floor(state.frames/600);
+            
+            const shouldSpawnEnemies = (state.stage !== 3);
+
+            if(shouldSpawnEnemies && entities.enemies.length < limit && state.frames % 60 === 0) {
+                entities.enemies.push(new Enemy());
+            }
+
+            if(shouldSpawnEnemies && entities.enemies.length === 0 && state.frames % 20 === 0) {
+                 entities.enemies.push(new Enemy());
+            }
+
+            if (state.stage === 3) {
+                if (!boss) { 
+                    boss = new Enemy(true, false);
+                    entities.enemies = [];
+                    showMessage("FINAL BOSS!!");
+                    Sound.playBGM("boss"); 
+                    drawBackground();
+                }
+            } else if (state.stage === 1 || state.stage === 2) {
+                const targetFrames = (state.stage === 1) ? 1800 : 2700;
+                if(state.frames >= targetFrames && !boss) {
+                    boss = new Enemy(true, false);
+                    entities.enemies = [];
+                    showMessage("WARNING!! BOSS!!");
+                }
+            }
+        }
+
+        function checkBossDeath(enemy) {
+            Sound.win();
+            const wasCyber = boss ? boss.isCyberBoss : false;
+            boss = null;
+            entities.dirts = [];
+            triggerShake(30); triggerHitStop(10);
+            
+            if (wasCyber) {
+                state.corruptionFrames = 0;
+                state.corruptionExtraDirtPct = 0;
+                const banner = document.getElementById('corruptionBanner');
+                if (banner) banner.classList.add('hidden');
+            }
+
+            const f = document.getElementById('flashOverlay');
+            if (f) {
+                f.classList.remove('flash'); void f.offsetWidth; f.classList.add('flash');
+            }
+            
+            if(state.stage===1) {
+                state.screen='SHOP';
+                document.getElementById('shopScreen').classList.remove('hidden');
+                Sound.stopBGM();
+            } else if (state.stage === 2) {
+                state.stage = 3; state.frames = 0;
+                state.bombRemaining = PALETTES[state.paletteId].maxBomb;
+                updateBombUI();
+                document.getElementById('stageDisplay').innerText = "STAGE 3";
+                resize(); 
+            } else if (state.stage === 3) {
+                state.stage = 4; state.frames = 0;
+                state.nextEndlessBossScore = 300000;
+                document.getElementById('stageDisplay').innerText = "ENDLESS";
+                showMessage("ENDLESS MODE START!");
+                Sound.playBGM("endless");
+                resize();
+            } else if (state.stage >= 4 && wasCyber) {
+                showMessage("CYBER BOSS DEFEATED!!");
+            }
+        }
+
+        function useBomb() {
+            if(state.bombRemaining <= 0 || state.stage === 1) return;
+            state.bombRemaining--;
+            updateBombUI();
+            
+            const f = document.getElementById('flashOverlay');
+            if (f) {
+                f.classList.remove('flash'); void f.offsetWidth; f.classList.add('flash');
+            }
+            Sound.bomb();
+            triggerShake(20);
+
+            entities.dirts.forEach(d => {
+                d.dead = true;
+                entities.bullets.push({x:d.x, y:d.y, vx:(Math.random()-0.5)*5, vy:-15, dead:false, tier:1, isBomb: true});
+            });
+            
+            entities.enemies.forEach(e => {
+                e.hp -= 200;
+                if(e.hp <= 0) {
+                    if(e.isBoss) checkBossDeath(e);
+                    else { e.dead = true; addScore(200); spawnImpact(e.x, e.y, '#fff', 2); }
+                }
+            });
+            if(boss && boss.hp > 0) {
+                boss.hp -= 500; 
+                if(boss.hp <= 0) checkBossDeath(boss);
+            }
+        }
+
+        function showMessage(text) {
+            const el = document.getElementById('centerMsg');
+            if(!el) return;
+            document.getElementById('centerMsgText').innerText = text;
+            el.classList.remove('hidden');
+            el.style.opacity = '1';
+            setTimeout(() => { el.style.opacity = '0'; setTimeout(()=>el.classList.add('hidden'), 500); }, 2000);
+        }
+
+        function drawPalette() {
+            if(mouse.x === -1000) return;
+            const pal = PALETTES[state.paletteId];
+            
+            ctx.save();
+            ctx.shadowBlur = 20; ctx.shadowColor = pal.color || '#38bdf8';
+            const img = Sprites.get(pal.sprite);
+            if(img) {
+                ctx.drawImage(img, mouse.x - (pal.w?pal.w/2:pal.size), mouse.y - (pal.h?pal.h/2:pal.size));
+            }
+            ctx.restore();
+        }
+
+        function updateParticles() {
+            ctx.globalCompositeOperation = 'lighter';
+
+            entities.particles.forEach(p => {
+                if(p.type === 'text') {
+                    p.y -= 1; p.life -= 0.02;
+                    ctx.globalAlpha = Math.max(0, p.life);
+                    ctx.fillStyle = p.color;
+                    ctx.font = `900 ${p.size}px "M PLUS Rounded 1c"`;
+                    ctx.shadowBlur = 10; ctx.shadowColor = p.color;
+                    ctx.fillText(p.text, p.x, p.y);
+                    ctx.shadowBlur = 0;
+                } 
+                else if (p.type === 'spark') {
+                    p.x += p.vx; p.y += p.vy; p.life -= 0.05;
+                    ctx.globalAlpha = Math.max(0, p.life);
+                    ctx.fillStyle = p.color;
+                    ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI*2); ctx.fill();
+                }
+                else if (p.type === 'flash') {
+                    p.life -= 0.1;
+                    ctx.globalAlpha = Math.max(0, p.life);
+                    ctx.fillStyle = p.color;
+                    ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI*2); ctx.fill();
+                }
+                else if (p.type === 'ring') {
+                    p.radius += (p.maxRadius - p.radius) * 0.2;
+                    p.life -= 0.05;
+                    ctx.globalAlpha = Math.max(0, p.life);
+                    ctx.strokeStyle = p.color; ctx.lineWidth = p.width * p.life;
+                    ctx.beginPath(); ctx.arc(p.x, p.y, p.radius, 0, Math.PI*2); ctx.stroke();
+                }
+            });
+            ctx.globalCompositeOperation = 'source-over';
+            ctx.globalAlpha = 1.0;
+            entities.particles = entities.particles.filter(p => p.life > 0);
+        }
+
+        function loop() {
+            if(state.screen !== 'PLAY') return;
+            
+            if(state.hitStop > 0) {
+                state.hitStop--;
+                requestAnimationFrame(loop);
+                return;
+            }
+
+            state.frames++;
+            
+            ctx.save();
+            if(state.shakeTime > 0) {
+                const dx = (Math.random()-0.5) * state.shakeTime;
+                const dy = (Math.random()-0.5) * state.shakeTime;
+                ctx.translate(dx, dy);
+                state.shakeTime--;
+            }
+
+            ctx.clearRect(0,0,canvas.width, canvas.height);
+            
+            if (state.corruptionFrames > 0) {
+                state.corruptionFrames--;
+                state.corruptionExtraDirtPct += 0.035;
+                if (state.corruptionFrames <= 0) {
+                    const banner = document.getElementById('corruptionBanner');
+                    if (banner) banner.classList.add('hidden');
+                }
+            }
+
+            if(state.comboTimer > 0) {
+                state.comboTimer--;
+                if(state.comboTimer === 0) {
+                    state.comboCount = 0;
+                    document.getElementById('comboVignette').classList.remove('high-combo');
+                } else if (state.comboCount >= 10) {
+                    document.getElementById('comboVignette').classList.add('high-combo');
+                }
+            }
+
+            spawnManager();
+
+            [...entities.enemies, ...entities.dirts, ...entities.bullets].forEach(e => {
+                if(e.update) e.update();
+            });
+            if(boss) { boss.update(); boss.draw(); }
+
+            ctx.globalCompositeOperation = 'lighter';
+            entities.bullets.forEach(b => {
+                b.x += b.vx; b.y += b.vy;
+                if(b.x<0||b.x>canvas.width||b.y<0||b.y>canvas.height) b.dead=true;
+                
+                let targets = [...entities.enemies];
+                if(boss && !targets.includes(boss)) targets.push(boss);
+
+                let hitRad = 10;
+                if(b.tier === 2) hitRad = 20;
+                if(b.tier === 3) hitRad = 30;
+
+                targets.forEach(t => {
+                    if(!t.dead && Math.hypot(b.x-t.x, b.y-t.y) < t.radius + hitRad) {
+                        let dmg = 10 * PALETTES[state.paletteId].power;
+                        if(b.tier === 2) dmg *= 1.2;
+                        if(b.tier === 3) dmg *= 1.5;
+                        if(b.isBomb) dmg = 10;
+
+                        t.hp -= dmg;
+                        if(b.tier !== 3) b.dead = true; 
+                        
+                        Sound.hit();
+                        if(state.frames%2===0) spawnImpact(b.x, b.y, '#facc15', 0.5);
+
+                        if(t.hp<=0) {
+                            if(t.isBoss) {
+                                checkBossDeath(t);
+                            } else {
+                                t.dead = true; addScore(200);
+                                spawnImpact(t.x, t.y, '#fff', 2);
+                                triggerShake(3);
+                            }
+                        }
+                    }
+                });
+
+                let spriteId = 'glow_blue';
+                if(b.tier===3) spriteId = 'glow_red';
+                else if(b.tier===2) spriteId = 'glow_yellow';
+                
+                const s = Sprites.get(spriteId);
+                if (s) {
+                    ctx.save(); ctx.translate(b.x, b.y); ctx.rotate(Math.atan2(b.vy, b.vx));
+                    ctx.drawImage(s, -s.width/2, -s.height/2 + (b.tier===3?-10:0), s.width*(b.tier===3?2:1.5), s.height);
+                    ctx.restore();
+                }
+            });
+            ctx.globalCompositeOperation = 'source-over';
+            entities.bullets = entities.bullets.filter(b=>!b.dead);
+
+            entities.enemies = entities.enemies.filter(e=>!e.dead);
+            entities.dirts = entities.dirts.filter(d=>!d.dead);
+
+            entities.dirts.forEach(d => d.draw());
+            entities.enemies.forEach(e => e.draw());
+            
+            updateParticles();
+            drawPalette();
+
+            ctx.restore();
+
+            if(state.frames % 5 === 0) {
+                const stuck = entities.dirts.filter(d=>d.state==='stuck').length;
+                let rawPct = Math.floor((stuck/40)*100);
+                let totalPct = Math.min(100, Math.floor(rawPct + state.corruptionExtraDirtPct));
+
+                document.getElementById('dirtBar').style.width = totalPct + '%';
+                document.getElementById('dirtPercent').innerText = totalPct + '%';
+
+                if(totalPct >= 100) {
+                    state.screen = 'GAMEOVER';
+                    document.getElementById('finalScore').innerText = state.score;
+                    
+                    if (state.stage >= 4) {
+                        const reasons = [
+                            "敗因: 手が疲れてスワイプが追いつかなかった…",
+                            "敗因: 黒い汚れ(HARD)が硬すぎた…",
+                            "敗因: 黄緑の汚れ(TOXIC)が分裂して画面が埋まった…",
+                            "敗因: 深緑の汚れ(STICKY)でダメージが通らなかった…",
+                            "敗因: サイバーボスの浸食汚染でゲージがパンクした…",
+                            "敗因: 青い汚れ(HEAVY)の落下速度を見逃した…",
+                            "敗因: ピンクの汚れ(REGEN)の自己回復を甘く見た…",
+                            "敗因: ボムの使い所を間違えた…",
+                            "敗因: 集中力が途切れてしまった…",
+                            "敗因: これが…お掃除の限界…ッ！"
+                        ];
+                        document.getElementById('deathReason').innerText = reasons[Math.floor(Math.random() * reasons.length)];
+                    } else {
+                        document.getElementById('deathReason').innerText = "敗因: 部屋が汚れきってしまった…";
+                    }
+                    
+                    document.getElementById('gameOverScreen').classList.remove('hidden');
+                    Sound.stopBGM();
+                }
+            }
+
+            if(mouse.isDown) {
+                mouse.lastX = mouse.x;
+                mouse.lastY = mouse.y;
+            }
+
+            state.loopId = requestAnimationFrame(loop);
+        }
+
+        function startGame() {
+            Sprites.init();
+            Sound.init();
+            Sound.playBGM("stage12"); 
+            
+            if(state.loopId) cancelAnimationFrame(state.loopId);
+            
+            state.screen = 'PLAY';
+            state.score = 0; state.frames = 0; state.stage = 1;
+            state.paletteId = 0; state.isEndless = false;
+            state.comboCount = 0; state.comboTimer = 0; state.shakeTime = 0; state.hitStop = 0;
+            state.nextEndlessBossScore = 300000;
+            state.corruptionFrames = 0;
+            state.corruptionExtraDirtPct = 0;
+            state.bombRemaining = PALETTES[state.paletteId].maxBomb;
+            updateBombUI();
+            
+            entities = { enemies: [], dirts: [], bullets: [], particles: [] };
+            boss = null;
+            
+            mouse.x = canvas.width/2; mouse.y = canvas.height/2; 
+            mouse.lastX = mouse.x; mouse.lastY = mouse.y;
+            mouse.isDown = false;
+            
+            document.getElementById('startScreen').classList.add('hidden');
+            document.getElementById('gameOverScreen').classList.add('hidden');
+            document.getElementById('shopScreen').classList.add('hidden');
+            document.getElementById('stageDisplay').innerText = "STAGE 1";
+            document.getElementById('scoreDisplay').innerText = "0";
+
+            resize();
+            loop();
+        }
+
+        window.selectPalette = (id) => {
+            state.paletteId = id;
+            for(let i=0; i<3; i++) {
+                const el = document.getElementById('card'+i);
+                if(el) {
+                    const selected = i === id;
+                    el.classList.toggle('selected', selected);
+                    el.setAttribute('aria-pressed', String(selected));
+                }
+            }
+        };
+
+        document.getElementById('shopNextBtn').addEventListener('click', () => {
+            state.screen = 'PLAY'; 
+            state.stage = 2;
+            state.frames = 0;
+            state.comboCount = 0;
+            state.bombRemaining = PALETTES[state.paletteId].maxBomb;
+            updateBombUI();
+            
+            entities.enemies = [new Enemy()];
+            entities.dirts = [];
+            entities.bullets = [];
+            
+            mouse.x = canvas.width/2; mouse.y = canvas.height/2; 
+            mouse.lastX = mouse.x; mouse.lastY = mouse.y;
+            mouse.isDown = false;
+            
+            document.getElementById('shopScreen').classList.add('hidden');
+            document.getElementById('stageDisplay').innerText = "STAGE 2";
+            
+            resize(); 
+            showMessage("STAGE 2 START!");
+            Sound.playBGM("stage12"); 
+            if(state.loopId) cancelAnimationFrame(state.loopId);
+            loop();
+        });
+
+        const btn = document.getElementById('specialBtn');
+        const triggerBomb = (e) => { e.stopPropagation(); e.preventDefault(); useBomb(); };
+        btn.addEventListener('click', triggerBomb);
+
+        window.addEventListener('mousedown', e => {
+            if(state.screen==='PLAY' && !e.target.closest('#specialBtn, .interactive')) {
+                Sound.resumeBGM();
+                updateInput(e.clientX, e.clientY);
+                mouse.isDown = true;
+                mouse.lastX = mouse.x; mouse.lastY = mouse.y;
+            }
+        });
+        window.addEventListener('mousemove', e => {
+            if(state.screen==='PLAY') updateInput(e.clientX, e.clientY);
+        });
+        window.addEventListener('mouseup', () => mouse.isDown = false);
+
+        window.addEventListener('touchstart', e => {
+            if(state.screen==='PLAY' && !e.target.closest('#specialBtn, .interactive')) {
+                Sound.resumeBGM();
+                updateInput(e.touches[0].clientX, e.touches[0].clientY);
+                mouse.isDown = true;
+                mouse.lastX = mouse.x; mouse.lastY = mouse.y;
+            }
+        }, {passive:false});
+        window.addEventListener('touchmove', e => {
+            if(state.screen==='PLAY') {
+                if(e.target.id!=='specialBtn' && !e.target.classList.contains('interactive')) e.preventDefault();
+                updateInput(e.touches[0].clientX, e.touches[0].clientY);
+            }
+        }, {passive:false});
+        window.addEventListener('touchend', () => mouse.isDown = false);
+        window.addEventListener('touchcancel', () => mouse.isDown = false);
+
+        document.querySelectorAll('.shop-card').forEach((card, i) => {
+            card.addEventListener('click', () => selectPalette(i));
+        });
+        document.getElementById('startBtn').addEventListener('click', startGame);
+        document.getElementById('retryBtn').addEventListener('click', startGame);
+
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                mouse.isDown = false;
+                Sound.pauseBGM();
+            }
+        });
+        window.addEventListener('blur', () => {
+            mouse.isDown = false;
+            Sound.pauseBGM();
+        });
+        
+        window.addEventListener('resize', resize);
+        window.addEventListener('load', () => { resize(); });
+        resize();
+    </script>
+</body>
+</html>

@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, follow">
+    <link rel="canonical" href="../../games/flick-samurai/">
+    <title>flickSamurai</title>
+    <style>
+        body {
+            margin: 0; overflow: hidden;
+            background-color: #000; color: white;
+            font-family: "Yu Mincho", "Hiragino Mincho ProN", serif;
+            touch-action: none; user-select: none; -webkit-user-select: none;
+        }
+        canvas { display: block; }
+        
+        #ui {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; display: flex; flex-direction: column;
+            justify-content: space-between; padding: 20px; box-sizing: border-box; z-index: 10;
+        }
+
+        .hud-top { display: flex; justify-content: space-between; align-items: flex-start; }
+        .score-box { text-shadow: 0 0 5px cyan; }
+        .score-val { font-size: 28px; font-weight: bold; color: #00ffff; }
+        
+        /* LIFE DISPLAY */
+        .life-box { text-align: center; margin-top: 5px; }
+        .life-val { font-size: 30px; letter-spacing: 5px; text-shadow: 0 0 10px red; }
+
+        .combo-container { text-align: right; }
+        .combo-val { 
+            font-size: 80px; color: #ff0055; font-weight: 900; 
+            text-shadow: 3px 3px 0px #fff, 0 0 20px #ff0055; line-height: 1; 
+            transition: transform 0.05s;
+        }
+        .combo-label { font-size: 16px; letter-spacing: 4px; color: #fff; opacity: 0.8; }
+        .fever-text { color: #ffff00; font-size: 20px; text-shadow: 0 0 10px red; display:none; font-weight: bold;}
+
+        /* Start Screen */
+        #start-screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.9);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 100; cursor: pointer; pointer-events: auto;
+        }
+        h1 {
+            font-size: 40px; margin: 0; color: #00ffff;
+            text-shadow: 0 0 20px cyan; font-style: italic; text-align: center;
+        }
+        .instruction {
+            margin-top: 20px; text-align: left; font-size: 15px; color: #ccc; line-height: 1.8;
+            background: rgba(255,255,255,0.1); padding: 20px; border-radius: 10px;
+        }
+        .blink { animation: blinker 1s linear infinite; font-size: 24px; color: #ff0055; font-weight:bold; margin-top: 30px; }
+        @keyframes blinker { 50% { opacity: 0; } }
+        #start-screen:focus-visible { outline: 3px solid #fff; outline-offset: -8px; }
+        @media (prefers-reduced-motion: reduce) {
+            .blink { animation: none; }
+        }
+        
+        /* Fever Indicator */
+        #fever-ind {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            font-size: 100px; color: yellow; text-shadow: 0 0 30px red;
+            display: none; opacity: 0; z-index: 20; pointer-events: none;
+            font-weight: 900; white-space: nowrap;
+        }
+    </style>
+</head>
+<body>
+
+<div id="ui">
+    <div class="hud-top">
+        <div class="score-box">
+            <div class="score-label">SCORE</div>
+            <div class="score-val" id="score">0</div>
+            <div class="life-box"><div class="life-val" id="life">❤️❤️❤️</div></div>
+        </div>
+        <div class="combo-container">
+            <div class="combo-val" id="combo">0</div>
+            <div class="combo-label">COMBO</div>
+            <div class="fever-text" id="fever-text">FEVER TIME!!</div>
+        </div>
+    </div>
+</div>
+
+<div id="fever-ind">百烈斬</div>
+
+<!-- START SCREEN: The trigger for audio -->
+<div id="start-screen" role="button" tabindex="0" aria-label="flickSamuraiを開始">
+    <h1>flickSamurai</h1>
+    <div class="instruction">
+        ◆ <span style="color:#0ff">一騎討ち</span>: 敵は一体のみ。正確に斬れ。<br>
+        ◆ <span style="color:#f05">見切り</span>: <span style="color:red">赤い敵</span>は矢印の<b>逆</b>に斬れ。<br>
+        ◆ <span style="color:#ff0">百烈</span>: 20コンボ毎に乱れ斬りモード発動！<br>
+        ◆ <span style="color:#0f0">ライフ</span>: <b>3回</b>ミスで終了。<br>
+        🎵 タップで音楽スタート
+    </div>
+    <p class="blink">TAP TO START</p>
+</div>
+
+<canvas id="gameCanvas"></canvas>
+
+<script>
+/**
+ * FLICK SAMURAI: SOUND FIX
+ * - Refined Audio Loading Strategy for Mobile Safari/Chrome
+ * - Ensures BGM plays on first interaction
+ * - Maintains all gameplay mechanics
+ */
+
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+let width = window.innerWidth;
+let height = window.innerHeight;
+canvas.width = width;
+canvas.height = height;
+
+// --- Config ---
+const FEVER_DURATION = 180; 
+const BGM_URL = "フリックサムライ.mp3"; 
+
+// --- State ---
+let gameState = 'START'; 
+let score = 0;
+let combo = 0;
+let lives = 3; 
+let frame = 0;
+let timeScale = 1.0;
+let gravity = 0.45;
+let bgLevel = 1; 
+const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+let isFever = false;
+let feverTimer = 0;
+
+// Input
+let touchStartX = 0, touchStartY = 0;
+let isTouching = false;
+
+// --- ROBUST AUDIO SYSTEM ---
+const AudioContext = window.AudioContext || window.webkitAudioContext;
+let audioCtx = new AudioContext();
+
+// BGM Object
+let bgm = new Audio();
+bgm.src = BGM_URL;
+bgm.loop = true;
+bgm.volume = 0.5;
+bgm.preload = 'none';
+document.addEventListener('visibilitychange', () => {
+    if (document.hidden) bgm.pause();
+});
+
+// SFX Buffer
+let noiseBuffer = null;
+function createNoiseBuffer() {
+    if (!audioCtx) return;
+    const bufferSize = audioCtx.sampleRate * 2; 
+    const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+        data[i] = Math.random() * 2 - 1;
+    }
+    noiseBuffer = buffer;
+}
+
+// Global Unlocker Function
+function initAudio() {
+    // 1. Resume Context
+    if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+    }
+    // 2. Init SFX Buffer
+    if (!noiseBuffer) createNoiseBuffer();
+    
+    // 3. Play BGM
+    bgm.play().then(() => {
+        console.log("BGM playing");
+    }).catch(e => {
+        console.warn("BGM blocked, waiting for interaction", e);
+    });
+}
+
+// Bind initAudio to the start screen explicitly
+document.getElementById('start-screen').addEventListener('touchstart', (e) => {
+    e.preventDefault(); // Prevent ghost clicks
+    initAudio();
+    startGame();
+}, {passive: false});
+
+document.getElementById('start-screen').addEventListener('click', () => {
+    initAudio();
+    startGame();
+});
+document.getElementById('start-screen').addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    initAudio();
+    startGame();
+});
+
+
+function playSound(type) {
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    if (!noiseBuffer) createNoiseBuffer();
+
+    const t = audioCtx.currentTime;
+    const gain = audioCtx.createGain();
+    gain.connect(audioCtx.destination);
+
+    if (type === 'slash') {
+        const src = audioCtx.createBufferSource();
+        src.buffer = noiseBuffer;
+        const filter = audioCtx.createBiquadFilter();
+        filter.type = 'bandpass';
+        filter.frequency.setValueAtTime(800, t);
+        filter.frequency.exponentialRampToValueAtTime(3000, t + 0.1);
+        src.connect(filter);
+        filter.connect(gain);
+        
+        gain.gain.setValueAtTime(0.5, t);
+        gain.gain.exponentialRampToValueAtTime(0.01, t + 0.15);
+        
+        src.start(t);
+        src.stop(t + 0.2);
+
+    } else if (type === 'hit') {
+        const osc = audioCtx.createOscillator();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(150, t);
+        osc.frequency.exponentialRampToValueAtTime(0.01, t + 0.3);
+        
+        const nSrc = audioCtx.createBufferSource();
+        nSrc.buffer = noiseBuffer;
+        const nFilter = audioCtx.createBiquadFilter();
+        nFilter.type = 'lowpass';
+        nFilter.frequency.value = 1000;
+        const nGain = audioCtx.createGain();
+        nSrc.connect(nFilter);
+        nFilter.connect(nGain);
+        nGain.connect(gain);
+        nGain.gain.setValueAtTime(0.5, t);
+        nGain.gain.exponentialRampToValueAtTime(0.01, t + 0.1);
+        nSrc.start(t);
+
+        osc.connect(gain);
+        gain.gain.setValueAtTime(0.8, t);
+        gain.gain.exponentialRampToValueAtTime(0.01, t + 0.3);
+        osc.start(t);
+        osc.stop(t + 0.3);
+
+    } else if (type === 'parry') {
+        [800, 1200, 2500].forEach(freq => {
+            const osc = audioCtx.createOscillator();
+            osc.type = 'triangle';
+            osc.frequency.value = freq;
+            osc.connect(gain);
+            osc.start(t);
+            osc.stop(t + 0.4);
+        });
+        gain.gain.setValueAtTime(0.3, t);
+        gain.gain.exponentialRampToValueAtTime(0.01, t + 0.4);
+
+    } else if (type === 'damage') {
+        const osc = audioCtx.createOscillator();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(100, t);
+        osc.frequency.linearRampToValueAtTime(50, t + 0.3);
+        
+        const lfo = audioCtx.createOscillator();
+        lfo.type = 'square';
+        lfo.frequency.value = 50;
+        const lfoGain = audioCtx.createGain();
+        lfoGain.gain.value = 500;
+        lfo.connect(lfoGain);
+        lfoGain.connect(osc.frequency);
+        lfo.start(t);
+        lfo.stop(t + 0.3);
+
+        osc.connect(gain);
+        gain.gain.setValueAtTime(0.5, t);
+        gain.gain.exponentialRampToValueAtTime(0.01, t + 0.3);
+        osc.start(t);
+        osc.stop(t + 0.3);
+    }
+}
+
+// --- Visuals ---
+
+class Trail {
+    constructor() { this.points = []; this.life = 0; }
+    addPoint(x, y) {
+        this.points.push({x, y});
+        if (this.points.length > 8) this.points.shift();
+        this.life = 10;
+    }
+    update() { if (this.life > 0) this.life--; }
+    draw() {
+        if (this.points.length < 2 || this.life <= 0) return;
+        ctx.save();
+        ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+        ctx.beginPath();
+        ctx.moveTo(this.points[0].x, this.points[0].y);
+        for (let i = 1; i < this.points.length; i++) ctx.lineTo(this.points[i].x, this.points[i].y);
+        
+        ctx.lineWidth = isFever ? 20 : 10;
+        ctx.strokeStyle = isFever ? '#ffff00' : '#00ffff';
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = ctx.strokeStyle;
+        ctx.stroke();
+        ctx.restore();
+    }
+}
+
+class Particle {
+    constructor(x, y, color) {
+        this.x = x; this.y = y; this.color = color;
+        const angle = Math.random() * Math.PI * 2;
+        const speed = Math.random() * 15;
+        this.vx = Math.cos(angle) * speed;
+        this.vy = Math.sin(angle) * speed;
+        this.life = 1.0;
+        this.size = Math.random() * 5 + 2;
+    }
+    update() {
+        this.x += this.vx * timeScale;
+        this.y += this.vy * timeScale;
+        this.life -= 0.03;
+    }
+    draw() {
+        ctx.globalAlpha = Math.max(0, this.life);
+        ctx.fillStyle = this.color;
+        ctx.fillRect(this.x, this.y, this.size, this.size);
+        ctx.globalAlpha = 1;
+    }
+}
+
+class BgEffect {
+    constructor(type) {
+        this.type = type; // 'rain', 'star'
+        this.x = Math.random() * width;
+        this.y = type === 'rain' ? -10 : Math.random() * height;
+        this.speed = Math.random() * 20 + 10;
+        this.size = Math.random() * 2 + 1;
+    }
+    update() {
+        if (this.type === 'rain') {
+            this.y += this.speed * timeScale;
+            if (this.y > height) this.y = -10;
+        } else {
+            // Star warp effect
+            this.x += (this.x - width/2) * 0.05 * timeScale;
+            this.y += (this.y - height/2) * 0.05 * timeScale;
+            this.size += 0.1 * timeScale;
+            if (this.x < 0 || this.x > width || this.y < 0 || this.y > height) {
+                this.x = Math.random() * width;
+                this.y = Math.random() * height;
+                this.size = 1;
+            }
+        }
+    }
+    draw() {
+        ctx.fillStyle = this.type === 'rain' ? '#0f0' : '#fff';
+        ctx.globalAlpha = 0.15; 
+        ctx.fillRect(this.x, this.y, this.size, this.type === 'rain' ? this.size * 5 : this.size);
+        ctx.globalAlpha = 1;
+    }
+}
+
+// --- Enemy ---
+
+class Enemy {
+    constructor() { 
+        this.active = false;
+    }
+    
+    reset() {
+        this.x = width / 2;
+        this.y = height + 100;
+        
+        let launchPower = 19 + Math.min(4, (score / 5000));
+        
+        this.vy = -launchPower; 
+        this.vx = (Math.random() - 0.5) * 4;
+        this.active = true;
+        
+        // Types
+        if (isFever) {
+            this.type = 'fever'; 
+        } else {
+            this.type = (Math.random() < Math.min(0.5, 0.1 + score/20000)) ? 'parry' : 'normal';
+        }
+        
+        this.targetDir = Math.floor(Math.random() * 4); // 0:R, 1:D, 2:L, 3:U
+        this.rotation = 0;
+    }
+
+    getKanji() {
+        if (this.type === 'fever') return '滅';
+        const map = ['斬', '落', '閃', '翔'];
+        return map[this.targetDir];
+    }
+    
+    getColor() {
+        if (this.type === 'fever') return '#ffff00';
+        if (this.type === 'parry') return '#ff0000';
+        const map = ['#ff0055', '#ffff00', '#00ffcc', '#ff00ff'];
+        return map[this.targetDir];
+    }
+
+    update() {
+        if (!this.active) return;
+        
+        this.vy += gravity * timeScale;
+        this.x += this.vx * timeScale;
+        this.y += this.vy * timeScale;
+        this.rotation += 0.05 * timeScale;
+        
+        // Wall bounce
+        if (this.x < 40 || this.x > width - 40) this.vx *= -0.8;
+        
+        // Game Over logic (Drop)
+        if (this.y > height + 80 && this.vy > 0) {
+            if (isFever) {
+                this.reset(); 
+            } else {
+                takeDamage(); 
+                this.reset();
+            }
+        }
+    }
+
+    draw() {
+        if (!this.active) return;
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        
+        const color = this.getColor();
+        
+        ctx.rotate(this.rotation);
+        
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 4;
+        ctx.fillStyle = 'rgba(0,0,0,0.8)';
+        
+        ctx.beginPath();
+        if (this.type === 'parry') {
+            for(let i=0; i<8; i++) {
+                ctx.rotate(Math.PI/4);
+                ctx.lineTo(45, 0); ctx.lineTo(25, 10);
+            }
+        } else {
+            ctx.rect(-35, -35, 70, 70);
+        }
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.rotate(-this.rotation); 
+        ctx.fillStyle = '#fff';
+        ctx.font = "bold 45px 'Noto Serif JP'";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.shadowColor = color;
+        ctx.shadowBlur = 20;
+        ctx.fillText(this.getKanji(), 0, 0);
+
+        if (this.type !== 'fever') {
+            const angle = this.targetDir * (Math.PI/2);
+            const dist = 70;
+            const tx = Math.cos(angle) * dist;
+            const ty = Math.sin(angle) * dist;
+            
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.arc(tx, ty, 10, 0, Math.PI*2);
+            ctx.fill();
+            
+            ctx.beginPath();
+            ctx.moveTo(tx, ty);
+            ctx.lineTo(0,0);
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 1;
+            ctx.stroke();
+        }
+
+        ctx.restore();
+    }
+}
+
+// --- Globals ---
+let currentEnemy = null;
+let particles = [];
+let bgEffects = [];
+let currentTrail = new Trail();
+let flashTime = 0;
+let shakeTime = 0;
+
+// --- Logic ---
+
+function updateLifeUI() {
+    let hearts = "";
+    for(let i=0; i<lives; i++) hearts += "❤️";
+    document.getElementById('life').innerText = hearts;
+}
+
+function takeDamage() {
+    playSound('damage');
+    lives--;
+    combo = 0; // Reset combo on damage
+    updateLifeUI();
+    document.getElementById('combo').innerText = combo;
+    
+    shakeTime = 20;
+    flashTime = 5; 
+    
+    if (lives <= 0) {
+        endGame();
+    }
+}
+
+function checkFever() {
+    if (!isFever && combo > 0 && combo % 20 === 0) {
+        startFever();
+    }
+}
+
+function startFever() {
+    isFever = true;
+    feverTimer = FEVER_DURATION;
+    
+    const ind = document.getElementById('fever-ind');
+    ind.style.display = 'block';
+    ind.style.opacity = '1';
+    ind.style.transform = 'translate(-50%, -50%) scale(1.5)';
+    setTimeout(() => {
+        ind.style.opacity = '0';
+        ind.style.transform = 'translate(-50%, -50%) scale(2)';
+        setTimeout(() => { ind.style.display = 'none'; }, 200);
+    }, 500);
+
+    document.getElementById('fever-text').style.display = 'block';
+
+    currentEnemy.reset();
+}
+
+function processHit(isParry) {
+    playSound(isParry ? 'parry' : 'hit');
+    
+    for(let i=0; i<20; i++) particles.push(new Particle(currentEnemy.x, currentEnemy.y, currentEnemy.getColor()));
+    
+    shakeTime = 10;
+    flashTime = 3;
+    
+    if (isFever) {
+        score += 500; 
+    } else {
+        combo++;
+        let points = 100 * combo;
+        if (isParry) points *= 2;
+        score += points;
+        
+        checkFever();
+    }
+    
+    currentEnemy.reset();
+    
+    document.getElementById('score').innerText = score;
+    document.getElementById('combo').innerText = combo;
+    const cVal = document.querySelector('.combo-val');
+    cVal.style.transform = "scale(1.4)";
+    setTimeout(() => cVal.style.transform = "scale(1)", 100);
+}
+
+function endGame() {
+    gameState = 'GAMEOVER';
+    bgm.pause();
+    bgm.currentTime = 0;
+    
+    document.getElementById('start-screen').style.display = 'flex';
+    document.querySelector('h1').innerHTML = "GAME OVER";
+    document.querySelector('.instruction').style.display = 'none';
+    document.querySelector('.blink').innerText = `SCORE: ${score}\nTAP TO RETRY`;
+}
+
+function startGame() {
+    if (gameState === 'PLAYING') return;
+
+    gameState = 'PLAYING';
+    document.getElementById('start-screen').style.display = 'none';
+    score = 0;
+    combo = 0;
+    lives = 3; 
+    updateLifeUI();
+    isFever = false;
+    
+    if (!currentEnemy) currentEnemy = new Enemy();
+    
+    currentEnemy.reset();
+    currentEnemy.vy = -19; 
+    particles = [];
+    bgEffects = [];
+    document.getElementById('score').innerText = 0;
+    document.getElementById('combo').innerText = 0;
+    document.getElementById('fever-text').style.display = 'none';
+}
+
+function updateBackground() {
+    if (score > 10000) bgLevel = 3;
+    else if (score > 3000) bgLevel = 2;
+    else bgLevel = 1;
+
+    if (prefersReducedMotion) return;
+    if (bgLevel === 2) {
+        if (bgEffects.length < 140 && Math.random() < 0.2) bgEffects.push(new BgEffect('rain'));
+    } else if (bgLevel === 3) {
+        if (bgEffects.length < 110 && Math.random() < 0.3) bgEffects.push(new BgEffect('star'));
+    }
+}
+
+function loop() {
+    requestAnimationFrame(loop);
+
+    timeScale = isFever ? 1.5 : 1.0; 
+
+    if (isFever && gameState === 'PLAYING') {
+        feverTimer--;
+        if (feverTimer <= 0) {
+            isFever = false;
+            document.getElementById('fever-text').style.display = 'none';
+        }
+        ctx.fillStyle = '#200';
+    } else {
+        ctx.fillStyle = bgLevel === 3 ? '#00000a' : '#050505';
+    }
+
+    if (flashTime > 0) { 
+        if (lives < 3 && shakeTime > 15) ctx.fillStyle = '#500'; 
+        else ctx.fillStyle = '#333'; 
+        flashTime--; 
+    }
+    ctx.fillRect(0, 0, width, height);
+
+    ctx.save();
+    if (!prefersReducedMotion && shakeTime > 0) {
+        ctx.translate((Math.random()-0.5)*shakeTime, (Math.random()-0.5)*shakeTime);
+        shakeTime--;
+    } else if (prefersReducedMotion) {
+        shakeTime = 0;
+    }
+
+    // Grid
+    ctx.strokeStyle = bgLevel === 3 ? '#110011' : '#001111'; 
+    ctx.lineWidth = 1;
+    let gridSize = 50;
+    let scrollY = (frame * 2) % gridSize;
+    ctx.beginPath();
+    for(let x=0; x<width; x+=gridSize) { ctx.moveTo(x,0); ctx.lineTo(x,height); }
+    for(let y=scrollY; y<height; y+=gridSize) { ctx.moveTo(0,y); ctx.lineTo(width,y); }
+    ctx.stroke();
+
+    updateBackground();
+    for(let i=bgEffects.length-1; i>=0; i--) {
+        bgEffects[i].update();
+        bgEffects[i].draw();
+        if(bgEffects[i].y > height || bgEffects[i].x < 0 || bgEffects[i].x > width) bgEffects.splice(i,1);
+    }
+
+    if (gameState === 'PLAYING') {
+        if(currentEnemy) {
+            currentEnemy.update();
+            currentEnemy.draw();
+        }
+        
+        for(let i=particles.length-1; i>=0; i--) {
+            particles[i].update();
+            particles[i].draw();
+            if(particles[i].life <= 0) particles.splice(i,1);
+        }
+    }
+
+    currentTrail.update();
+    currentTrail.draw();
+
+    ctx.restore();
+    frame++;
+}
+
+// --- Input Handling ---
+
+function handleStart(x, y) {
+    if (gameState !== 'PLAYING') return;
+    touchStartX = x; 
+    touchStartY = y;
+    isTouching = true;
+    currentTrail = new Trail();
+    currentTrail.addPoint(x, y);
+}
+
+function handleMove(x, y) {
+    if (!isTouching) return;
+    currentTrail.addPoint(x, y);
+
+    const dx = x - touchStartX;
+    const dy = y - touchStartY;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+
+    if (dist > 40) {
+        let dir = -1;
+        if (Math.abs(dx) > Math.abs(dy)) dir = dx > 0 ? 0 : 2; // R : L
+        else dir = dy > 0 ? 1 : 3; // D : U
+
+        let hit = false;
+        let isParry = false;
+
+        // Fever check: Allow hit even if just ended
+        if (isFever || (currentEnemy && currentEnemy.type === 'fever')) {
+            hit = true;
+        } else {
+            if (currentEnemy.type === 'normal') {
+                if (dir === currentEnemy.targetDir) hit = true;
+            } else if (currentEnemy.type === 'parry') {
+                let correct = (currentEnemy.targetDir + 2) % 4;
+                if (dir === correct) {
+                    hit = true;
+                    isParry = true;
+                }
+            }
+        }
+
+        if (hit) {
+            processHit(isParry);
+            isTouching = false; 
+        } else {
+            if (!isFever) {
+                takeDamage();
+                isTouching = false;
+            }
+        }
+    }
+}
+
+function handleEnd() {
+    isTouching = false;
+}
+
+// Events
+function onResize() {
+    width = window.innerWidth; height = window.innerHeight;
+    canvas.width = width; canvas.height = height;
+    if(currentEnemy) {
+        currentEnemy.x = width / 2;
+    }
+}
+window.addEventListener('resize', onResize);
+
+canvas.addEventListener('touchstart', e => { e.preventDefault(); handleStart(e.touches[0].clientX, e.touches[0].clientY); }, {passive: false});
+canvas.addEventListener('touchmove', e => { e.preventDefault(); handleMove(e.touches[0].clientX, e.touches[0].clientY); }, {passive: false});
+canvas.addEventListener('touchend', e => { e.preventDefault(); handleEnd(); });
+
+let mDown = false;
+window.addEventListener('mousedown', e => { mDown=true; handleStart(e.clientX, e.clientY); });
+window.addEventListener('mousemove', e => { if(mDown) handleMove(e.clientX, e.clientY); });
+window.addEventListener('mouseup', () => { mDown=false; handleEnd(); });
+
+// Init immediately
+onResize();
+currentEnemy = new Enemy();
+loop();
+
+</script>
+</body>
+</html>
