@@ -1,17 +1,20 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url><loc>https://nuimaayato.github.io/nuimaayato/</loc></url>
-  <url><loc>https://nuimaayato.github.io/nuimaayato/novels/anata-wo-kiratteiru-hito-ga-hitori-imasu/</loc></url>
-  <url><loc>https://nuimaayato.github.io/nuimaayato/novels/skinned-past/</loc></url>
-  <url><loc>https://nuimaayato.github.io/nuimaayato/novels/boku-no-shiranai-aitsu-no-fukushu/</loc></url>
-  <url><loc>https://nuimaayato.github.io/nuimaayato/novels/trust-room/</loc></url>
-  <url><loc>https://nuimaayato.github.io/nuimaayato/novels/moshimo-sekaiju-kara/</loc></url>
-  <url><loc>https://nuimaayato.github.io/nuimaayato/novels/jisoku-11km-no-daidassou/</loc></url>
-  <url><loc>https://nuimaayato.github.io/nuimaayato/novels/tadashisa-no-sotogawa-de/</loc></url>
-  <url><loc>https://nuimaayato.github.io/nuimaayato/games/rearview-1/</loc></url>
-  <url><loc>https://nuimaayato.github.io/nuimaayato/games/rearview-2/</loc></url>
-  <url><loc>https://nuimaayato.github.io/nuimaayato/games/memorydraw/</loc></url>
-  <url><loc>https://nuimaayato.github.io/nuimaayato/games/flick-samurai/</loc></url>
-  <url><loc>https://nuimaayato.github.io/nuimaayato/games/cleaning-bubble/</loc></url>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
+  <url><loc>https://nuimaayato.github.io/nuimaayato/</loc><image:image><image:loc>https://nuimaayato.github.io/nuimaayato/images/gate-moonlit.png</image:loc></image:image></url>
+  <url><loc>https://nuimaayato.github.io/nuimaayato/novels/</loc></url>
+  <url><loc>https://nuimaayato.github.io/nuimaayato/games/</loc></url>
+  <url><loc>https://nuimaayato.github.io/nuimaayato/music/</loc></url>
+  <url><loc>https://nuimaayato.github.io/nuimaayato/novels/anata-wo-kiratteiru-hito-ga-hitori-imasu/</loc><image:image><image:loc>https://nuimaayato.github.io/nuimaayato/images/novels/anata-wo-kiratteiru-hito-ga-hitori-imasu.png</image:loc></image:image></url>
+  <url><loc>https://nuimaayato.github.io/nuimaayato/novels/skinned-past/</loc><image:image><image:loc>https://nuimaayato.github.io/nuimaayato/images/novels/skinned-past.png</image:loc></image:image></url>
+  <url><loc>https://nuimaayato.github.io/nuimaayato/novels/boku-no-shiranai-aitsu-no-fukushu/</loc><image:image><image:loc>https://nuimaayato.github.io/nuimaayato/images/novels/boku-no-shiranai-aitsu-no-fukushu.png</image:loc></image:image></url>
+  <url><loc>https://nuimaayato.github.io/nuimaayato/novels/trust-room/</loc><image:image><image:loc>https://nuimaayato.github.io/nuimaayato/images/novels/trust-room.png</image:loc></image:image></url>
+  <url><loc>https://nuimaayato.github.io/nuimaayato/novels/moshimo-sekaiju-kara/</loc><image:image><image:loc>https://nuimaayato.github.io/nuimaayato/images/novels/moshimo-sekaiju-kara.png</image:loc></image:image></url>
+  <url><loc>https://nuimaayato.github.io/nuimaayato/novels/jisoku-11km-no-daidassou/</loc><image:image><image:loc>https://nuimaayato.github.io/nuimaayato/images/novels/jisoku-11km-no-daidassou.png</image:loc></image:image></url>
+  <url><loc>https://nuimaayato.github.io/nuimaayato/novels/tadashisa-no-sotogawa-de/</loc><image:image><image:loc>https://nuimaayato.github.io/nuimaayato/images/novels/tadashisa-no-sotogawa-de.png</image:loc></image:image></url>
+  <url><loc>https://nuimaayato.github.io/nuimaayato/games/rearview-1/</loc><image:image><image:loc>https://nuimaayato.github.io/nuimaayato/images/games/rearview-1.png</image:loc></image:image></url>
+  <url><loc>https://nuimaayato.github.io/nuimaayato/games/rearview-2/</loc><image:image><image:loc>https://nuimaayato.github.io/nuimaayato/images/games/rearview-2.png</image:loc></image:image></url>
+  <url><loc>https://nuimaayato.github.io/nuimaayato/games/memorydraw/</loc><image:image><image:loc>https://nuimaayato.github.io/nuimaayato/images/games/memorydraw.png</image:loc></image:image></url>
+  <url><loc>https://nuimaayato.github.io/nuimaayato/games/flick-samurai/</loc><image:image><image:loc>https://nuimaayato.github.io/nuimaayato/images/games/flick-samurai.png</image:loc></image:image></url>
+  <url><loc>https://nuimaayato.github.io/nuimaayato/games/cleaning-bubble/</loc><image:image><image:loc>https://nuimaayato.github.io/nuimaayato/images/games/cleaning-bubble.png</image:loc></image:image></url>
   <url><loc>https://nuimaayato.github.io/nuimaayato/projects/obake-hunting-squad/</loc></url>
 </urlset>
